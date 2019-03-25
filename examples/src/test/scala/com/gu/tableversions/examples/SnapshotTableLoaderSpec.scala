@@ -3,6 +3,10 @@ package com.gu.tableversions.examples
 import java.net.URI
 import java.nio.file.Paths
 
+import cats.effect.IO
+import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core._
+import com.gu.tableversions.metastore.HiveMetastore
 import com.gu.tableversions.spark.SparkHiveSuite
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -10,12 +14,17 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
   import SnapshotTableLoader._
 
-  val tableName = s"$schema.identity"
+  val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
 
   "Writing multiple versions of a snapshot dataset" should "produce distinct versions" ignore {
     import spark.implicits._
 
-    val loader = new SnapshotTableLoader(tableName, tableUri)
+    implicit val tableVersions = new InMemoryTableVersions[IO]()
+    implicit val metastore = new HiveMetastore[IO]()
+
+    val userId = UserId("test user")
+
+    val loader = new SnapshotTableLoader(table)
     loader.initTable()
 
     // Write the data to the table
@@ -24,7 +33,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
       User("user-2", "Bob", "bob@mail.com"),
       User("user-3", "Carol", "carol@mail.com")
     )
-    loader.insert(identitiesDay1.toDS().coalesce(2))
+    loader.insert(identitiesDay1.toDS(), userId, "Committing first version from test")
 
     // Query the table to make sure we have the right data
     val day1TableData = loader.users().collect()
@@ -39,7 +48,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
       User("user-3", "Carol", "carol@othermail.com"),
       User("user-4", "Dave", "dave@mail.com")
     )
-    loader.insert(identitiesDay2.toDS().coalesce(2))
+    loader.insert(identitiesDay2.toDS(), userId, "Committing second version from test")
 
     // Query it to make sure we have the right data
     val day2TableData = loader.users().collect()

@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  "Writing multiple versions of a dataset with multiple partition columns" should "produce distinct partiton versions" ignore {
+  "Writing multiple versions of a dataset with multiple partition columns" should "produce distinct partition versions" ignore {
 
     import spark.implicits._
 
@@ -21,7 +21,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       AdImpression("user-2", "ad-1", Timestamp.valueOf("2019-03-14 00:00:10"), Date.valueOf("2019-03-14")),
       AdImpression("user-3", "ad-2", Timestamp.valueOf("2019-03-14 00:00:10"), Date.valueOf("2019-03-14"))
     )
-    loader.insert(impressionsDay1.toDS().coalesce(2))
+    loader.insert(impressionsDay1.toDS())
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1
 
     partitionVersions(tableDir) shouldBe Map(
@@ -33,7 +33,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       AdImpression("user-1", "ad-1", Timestamp.valueOf("2019-03-14 23:59:00"), Date.valueOf("2019-03-15")),
       AdImpression("user-4", "ad-3", Timestamp.valueOf("2019-03-15 00:00:10"), Date.valueOf("2019-03-15"))
     )
-    loader.insert(impressionsDay2.toDS().coalesce(2))
+    loader.insert(impressionsDay2.toDS())
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     partitionVersions(tableDir) shouldBe Map(
@@ -45,7 +45,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
     // Rewrite impressions to change the content for one of the event dates
     val impressionsDay2Updated = impressionsDay2.filter(_.user_id != "user-4")
-    loader.insert(impressionsDay2Updated.toDS().coalesce(2))
+    loader.insert(impressionsDay2Updated.toDS())
 
     // Query to check we see the updated version
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated

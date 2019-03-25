@@ -11,5 +11,10 @@ object Dependencies {
       "org.apache.spark" %% "spark-hive" % sparkVersion % Provided,
     )
 
+  lazy val catsDependencies: Seq[ModuleID] =
+    Seq(
+      "org.typelevel" %% "cats-core" % "1.5.0",
+      "org.typelevel" %% "cats-effect" % "1.2.0"
+    )
 
 }

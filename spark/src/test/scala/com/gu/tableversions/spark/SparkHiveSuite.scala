@@ -109,4 +109,6 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
     ()
   }
 
+  def resolveTablePath(childPath: String): URI = new URI(tableUri.toString + "/" + childPath)
+
 }

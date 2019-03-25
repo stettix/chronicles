@@ -4,6 +4,11 @@ import java.net.URI
 import java.nio.file.Paths
 import java.sql.Timestamp
 
+import cats.effect.IO
+import com.gu.tableversions.core.Partition.PartitionColumn
+import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core._
+import com.gu.tableversions.metastore.HiveMetastore
 import com.gu.tableversions.spark.SparkHiveSuite
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -11,11 +16,20 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
   import DatePartitionedTableLoader._
 
-  "Writing multiple versions of a date partitioned dataset" should "produce distinct partiton versions" ignore {
+  val table = TableDefinition(
+    TableName(schema, "pageview"),
+    tableUri,
+    PartitionSchema(List(PartitionColumn("date")))
+  )
+
+  "Writing multiple versions of a date partitioned dataset" should "produce distinct partition versions" ignore {
 
     import spark.implicits._
+    implicit val tableVersions = new InMemoryTableVersions[IO]()
+    implicit val metastore = new HiveMetastore[IO]()
 
-    val loader = new DatePartitionedTableLoader(s"$schema.pageview", tableDir.toUri)
+    val loader =
+      new DatePartitionedTableLoader(table)
     loader.initTable()
 
     val pageviewsDay1 = List(
@@ -25,7 +39,8 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
       Pageview("user-3", "sport/football", Timestamp.valueOf("2019-03-13 21:00:00"))
     )
 
-    loader.insert(pageviewsDay1.toDS().coalesce(2))
+    val userId = UserId("test user")
+    loader.insert(pageviewsDay1.toDS(), userId, "Day 1 initial commit")
 
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1
 
@@ -35,7 +50,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
       Pageview("user-4", "business", Timestamp.valueOf("2019-03-14 14:00:00"))
     )
 
-    loader.insert(pageviewsDay2.toDS().coalesce(2))
+    loader.insert(pageviewsDay2.toDS(), userId, "Day 2 initial commit")
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1 ++ pageviewsDay2
 
     val pageviewsDay3 = List(
@@ -44,7 +59,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
       Pageview("user-3", "sport/football", Timestamp.valueOf("2019-03-15 21:00:00"))
     )
 
-    loader.insert(pageviewsDay3.toDS().coalesce(2))
+    loader.insert(pageviewsDay3.toDS(), userId, "Day 3 initial commit")
 
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1 ++ pageviewsDay2 ++ pageviewsDay3
 
@@ -69,8 +84,9 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     versionDirs(tableUri, "date=2019-03-15") shouldBe List("v1")
 
     // Rewrite pageviews to remove one of the identity IDs, affecting only day 2
+    // TODO: Change this to affect multiple partitions
     val updatedPageviewsDay2 = pageviewsDay2.filter(_.id != "user-4")
-    loader.insert(updatedPageviewsDay2.toDS().coalesce(2))
+    loader.insert(updatedPageviewsDay2.toDS(), UserId("another user"), "Reprocess day 2")
 
     // Query to check we see the updated data
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1 ++ updatedPageviewsDay2 ++ pageviewsDay3
@@ -83,6 +99,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     // TODO: Query Metastore directly to check what partitions the table has?
     //   (When implementing rollback and creating views on historical versions we could just test that functionality
     //    instead of querying storage directly)
+    //   Also: query version history for table
 
     spark.read
       .parquet(tableUri.toString + "2019-03-14/v1")

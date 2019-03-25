@@ -1,46 +1,54 @@
 package com.gu.tableversions.examples
 
-import java.net.URI
-
+import cats.effect.IO
+import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core._
 import com.gu.tableversions.examples.SnapshotTableLoader.User
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
+import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.VersionedDataset
+import com.typesafe.scalalogging.LazyLogging
+import org.apache.spark.sql.{Dataset, SparkSession}
 
 /**
   * This is an example of loading data into a 'snapshot' table, that is, a table where we replace all the content
   * every time we write to it (no partial updates).
-  *
-  * @param tableName The fully qualified table name
-  * @param tableLocation The location where the table data will be stored
   */
-class SnapshotTableLoader(tableName: String, tableLocation: URI)(implicit val spark: SparkSession) {
+class SnapshotTableLoader(table: TableDefinition)(
+    implicit tableVersions: TableVersions[IO],
+    metastore: Metastore[IO],
+    spark: SparkSession)
+    extends LazyLogging {
 
   import spark.implicits._
 
   def initTable(): Unit = {
-    val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS $tableName (
+    // Create table schema in metastore
+    val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `id` string,
                  |  `name` string,
                  |  `email` string
                  |)
                  |STORED AS parquet
-                 |LOCATION '$tableLocation'
+                 |LOCATION '${table.location}'
     """.stripMargin
 
     spark.sql(ddl)
-    ()
-  }
 
-  def insert(dataset: Dataset[User]): Unit = {
-    // Currently, this just uses the basic implementation of writing data to tables via Hive.
-    // This will not do any versioning as-is - this is the implementation we need to replace
-    // with new functionality in this project.
-    dataset.write.mode(SaveMode.Overwrite).parquet(tableLocation.toString)
-    spark.sql(s"REFRESH TABLE $tableName")
-    ()
+    // Initialise version tracking for table
+    tableVersions.init(table.name).unsafeRunSync()
   }
 
   def users(): Dataset[User] =
-    spark.table(tableName).as[User]
+    spark.table(table.name.fullyQualifiedName).as[User]
+
+  def insert(dataset: Dataset[User], userId: UserId, message: String): Unit = {
+    import VersionedDataset._
+
+    val (latestVersion, metastoreChanges) = dataset.versionedInsertInto(table, userId, message)
+
+    logger.info(s"Updated table $table, new version details:\n$latestVersion")
+    logger.info(s"Applied the the following changes to sync the Metastore:\n$metastoreChanges")
+  }
 
 }
 
