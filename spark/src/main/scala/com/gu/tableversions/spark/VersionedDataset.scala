@@ -62,10 +62,7 @@ object VersionedDataset {
       // Get latest version details and Metastore table details and sync the Metastore to match,
       // effectively switching the table to the new version.
       latestTableVersion <- tableVersions.currentVersion(table.name)
-      maybeMetastoreVersion <- metastore.currentVersion(table.name)
-      metastoreVersion <- maybeMetastoreVersion
-        .map(IO.pure)
-        .getOrElse(IO.raiseError(new Exception(s"No metastore version found for table '${table.name}'")))
+      metastoreVersion <- metastore.currentVersion(table.name)
       metastoreUpdate = metastore.computeChanges(latestTableVersion, metastoreVersion)
 
       // Sync Metastore to match

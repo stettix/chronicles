@@ -37,7 +37,7 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
   // See https://stackoverflow.com/questions/48008343/sbt-test-does-not-work-for-spark-test
   System.setSecurityManager(null)
 
-  val schema: String = "sparkhivesuite"
+  val schema: String = "test"
 
   private val rootDir: Path = Files.createDirectories(Paths.get(URI.create(s"file:///tmp/${UUID.randomUUID.toString}")))
 
@@ -45,7 +45,7 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
   logger.info(s"Creating SparkHiveSuite in $rootDir")
 
   val tableDir: Path = rootDir.resolve("table/")
-  val tableUri = tableDir.toUri
+  val tableUri: URI = tableDir.toUri
 
   val localMetastorePath: String = new File(rootDir.toFile, "metastore").getCanonicalPath
   val localWarehousePath: String = new File(rootDir.toFile, "warehouse").getCanonicalPath

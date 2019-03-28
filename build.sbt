@@ -56,7 +56,8 @@ lazy val spark = project
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
       "log4j" % "log4j" % "1.2.17"
     ) ++ sparkDependencies)
-  .dependsOn(core, metastore)
+  .settings(parallelExecution in Test := false)
+  .dependsOn(core, metastore % "compile->compile;test->test")
 
 lazy val examples = project
   .in(file("examples"))
@@ -64,7 +65,5 @@ lazy val examples = project
   .settings(
     libraryDependencies ++= sparkDependencies
   )
-  .settings(
-    parallelExecution in Test := false
-  )
+  .settings(parallelExecution in Test := false)
   .dependsOn(core, metastore, spark % "compile->compile;test->test")

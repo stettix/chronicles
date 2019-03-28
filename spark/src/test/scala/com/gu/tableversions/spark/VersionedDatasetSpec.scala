@@ -245,8 +245,8 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   class StubMetastore(currentVersion: TableVersion, computedChanges: TableChanges) extends Metastore[IO] {
 
-    override def currentVersion(table: TableName): IO[Option[TableVersion]] =
-      IO(Some(currentVersion))
+    override def currentVersion(table: TableName): IO[TableVersion] =
+      IO(currentVersion)
 
     override def computeChanges(current: TableVersion, target: TableVersion): TableChanges =
       computedChanges
