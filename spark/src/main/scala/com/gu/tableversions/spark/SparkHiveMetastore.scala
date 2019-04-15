@@ -1,5 +1,6 @@
 package com.gu.tableversions.spark
 
+import java.io.File
 import java.net.URI
 
 import cats.effect.Sync
@@ -94,7 +95,7 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
       performUpdate(s"Updating table location of table ${table.fullyQualifiedName}", updateQuery)
     }
 
-    findTableLocation(table).flatMap(updateLocation).void
+    findTableLocation(table).map(versionedToBasePath).flatMap(updateLocation).void
   }
 
   private def versionedPartitionLocation(table: TableName, partitionVersion: PartitionVersion): F[URI] =
@@ -183,7 +184,7 @@ object SparkHiveMetastore {
     Partition(columnValues)
   }
 
-  private val VersionRegex = "v(\\d+)".r
+  private val VersionRegex = "v(\\d+)$".r
 
   private[spark] def parseVersion(location: URI): VersionNumber = {
     val maybeVersionStr = location.toString.split("/").lastOption
@@ -191,6 +192,16 @@ object SparkHiveMetastore {
       case Some(VersionRegex(versionStr)) => VersionNumber(versionStr.toInt)
       case _                              => VersionNumber(0)
     }
+  }
+
+  private[spark] def versionedToBasePath(location: URI): URI = {
+    def parentPath(uri: URI): URI = {
+      val parentPath = new File(uri.getPath).getParent
+      new URI(uri.getScheme, uri.getUserInfo, uri.getHost, uri.getPort, parentPath, uri.getQuery, uri.getFragment)
+    }
+    if (location.toString.matches(".*/v(\\d+)$"))
+      parentPath(location)
+    else location
   }
 
 }

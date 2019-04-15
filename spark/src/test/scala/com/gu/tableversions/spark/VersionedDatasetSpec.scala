@@ -119,7 +119,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     )
 
     // Stub table versions
-    val committedTableUpdatesRef = Ref[IO].of(List.empty[TableVersions.TableUpdate]).unsafeRunSync()
+    val committedTableUpdatesRef = Ref[IO].of(List.empty[(TableName, TableVersions.TableUpdate)]).unsafeRunSync()
     implicit val stubTableVersions = new StubTableVersions(
       currentVersions = Map(usersTable.name -> TableVersion(nextPartitionVersions)),
       nextVersions = Map(usersTable.name -> nextPartitionVersions),
@@ -147,7 +147,8 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
     val tableUpdates = stubTableVersions.committedTableUpdates.unsafeRunSync()
     tableUpdates should have size 1
-    val tableUpdate = tableUpdates.head
+    val (tableName, tableUpdate) = tableUpdates.head
+    tableName shouldBe usersTable.name
     tableUpdate.message shouldBe UpdateMessage("Test insert users into table")
     timestampBeforeWriting.isAfter(tableUpdate.timestamp) shouldBe false
     tableUpdate.userId shouldBe userId
@@ -173,7 +174,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     )
 
     // Stub table versions
-    val committedTableUpdatesRef = Ref[IO].of(List.empty[TableVersions.TableUpdate]).unsafeRunSync()
+    val committedTableUpdatesRef = Ref[IO].of(List.empty[(TableName, TableVersions.TableUpdate)]).unsafeRunSync()
     implicit val stubTableVersions = new StubTableVersions(
       currentVersions = Map(eventsTable.name -> TableVersion(nextPartitionVersions)),
       nextVersions = Map(eventsTable.name -> nextPartitionVersions),
@@ -210,7 +211,8 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
     val tableUpdates = stubTableVersions.committedTableUpdates.unsafeRunSync()
     tableUpdates should have size 1
-    val tableUpdate = tableUpdates.head
+    val (tableName, tableUpdate) = tableUpdates.head
+    tableName shouldBe eventsTable.name
     tableUpdate.message shouldBe UpdateMessage("Test insert events into table")
     timestampBeforeWriting.isAfter(tableUpdate.timestamp) shouldBe false
     tableUpdate.userId shouldBe userId
@@ -224,10 +226,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
   class StubTableVersions(
       currentVersions: Map[TableName, TableVersion],
       nextVersions: Map[TableName, List[PartitionVersion]],
-      committedTableUpdatesRef: Ref[IO, List[TableVersions.TableUpdate]])
+      committedTableUpdatesRef: Ref[IO, List[(TableName, TableVersions.TableUpdate)]])
       extends TableVersions[IO] {
 
-    def committedTableUpdates: IO[List[TableVersions.TableUpdate]] =
+    def committedTableUpdates: IO[List[(TableName, TableVersions.TableUpdate)]] =
       committedTableUpdatesRef.get
 
     override def init(table: TableName): IO[Unit] =
@@ -239,8 +241,8 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     override def nextVersions(table: TableName, partitions: List[Partition]): IO[List[PartitionVersion]] =
       IO(nextVersions(table))
 
-    override def commit(newVersion: TableVersions.TableUpdate): IO[TableVersions.CommitResult] =
-      committedTableUpdatesRef.update(_ :+ newVersion).map(_ => CommitResult.SuccessfulCommit)
+    override def commit(table: TableName, newVersion: TableVersions.TableUpdate): IO[TableVersions.CommitResult] =
+      committedTableUpdatesRef.update(_ :+ table -> newVersion).map(_ => CommitResult.SuccessfulCommit)
   }
 
   class StubMetastore(currentVersion: TableVersion, computedChanges: TableChanges) extends Metastore[IO] {

@@ -109,6 +109,14 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
     }
   }
 
+  "Getting the base path from a versioned path" should "return the same path if it's already unversioned" in {
+    versionedToBasePath(new URI("hdfs://bucket/identity")) shouldBe new URI("hdfs://bucket/identity")
+  }
+
+  it should "return strip off the version part of the path" in {
+    versionedToBasePath(new URI("hdfs://bucket/identity/v42")) shouldBe new URI("hdfs://bucket/identity")
+  }
+
   private def initPartitionedTable(table: TableDefinition): IO[Unit] = {
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `id` string,

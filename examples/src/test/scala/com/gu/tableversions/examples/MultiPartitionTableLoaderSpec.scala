@@ -62,16 +62,12 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
   def partitionVersions(tableLocation: Path): Map[(String, String), List[String]] = {
 
     def datePartitions(dir: Path): List[String] = {
-      println(s"Looking for date partitions in '$dir'")
       val datePartitionPattern = "date=\\d\\d\\d\\d-\\d\\d-\\d\\d"
       dir.toFile.list().toList.filter(_.matches(datePartitionPattern))
     }
 
-    def versions(dir: Path): List[String] = {
-      println(s"Looking for versions in '$dir'")
-      println(s"dir.toFile.list() = ${dir.toFile.list().toList}")
+    def versions(dir: Path): List[String] =
       dir.toFile.list().toList.filter(_.matches("v\\d+"))
-    }
 
     val impressionDatePartitions: List[String] = datePartitions(tableLocation)
 

@@ -10,7 +10,7 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
   val date = PartitionColumn("date")
 
   "Computing differences" should "produce operations to add new partitions" in {
-    val oldVersion = TableVersion(Nil)
+    val oldVersion = TableVersion.empty
 
     val newPartitionVersions = List(
       PartitionVersion(Partition(date, "2019-03-01"), VersionNumber(3)),
@@ -33,7 +33,7 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
     )
     val oldVersion = TableVersion(oldPartitionVersions)
 
-    val newVersion = TableVersion(Nil)
+    val newVersion = TableVersion.empty
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 

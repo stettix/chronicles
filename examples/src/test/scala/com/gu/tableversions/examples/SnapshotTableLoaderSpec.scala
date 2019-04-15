@@ -15,10 +15,10 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
   val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
 
-  "Writing multiple versions of a snapshot dataset" should "produce distinct versions" ignore {
+  "Writing multiple versions of a snapshot dataset" should "produce distinct versions" in {
     import spark.implicits._
 
-    implicit val tableVersions = new InMemoryTableVersions[IO]()
+    implicit val tableVersions = InMemoryTableVersions[IO].unsafeRunSync()
     implicit val metastore = new SparkHiveMetastore[IO]()
 
     val userId = UserId("test user")
@@ -62,7 +62,9 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
   }
 
   def versionDirs(tableLocation: URI): List[String] = {
-    val dir = Paths.get(tableLocation)
+    assert(tableLocation.toString.startsWith("file://"))
+    val basePath = tableLocation.toString.drop("file://".length)
+    val dir = Paths.get(basePath)
     dir.toFile.list().toList.filter(_.matches("v\\d+"))
   }
 

@@ -26,7 +26,7 @@ trait TableVersions[F[_]] {
     * This performs no checking if data has been written to the associated paths but it will verify that these versions
     * 1) haven't been committed before and 2) these are the next versions to be committed for each of the partitions.
     */
-  def commit(newVersion: TableVersions.TableUpdate): F[CommitResult]
+  def commit(table: TableName, update: TableVersions.TableUpdate): F[CommitResult]
 
 }
 
@@ -37,7 +37,7 @@ object TableVersions {
       userId: UserId,
       message: UpdateMessage,
       timestamp: Instant,
-      updatedPartitions: List[PartitionVersion])
+      partitionUpdates: List[PartitionOperation])
 
   final case class UpdateMessage(content: String) extends AnyVal
 
@@ -52,5 +52,13 @@ object TableVersions {
   }
 
   case class ErrorMessage(value: String) extends AnyVal
+
+  /** ADT for operations on individual partitions. */
+  sealed trait PartitionOperation
+
+  object PartitionOperation {
+    final case class AddPartitionVersion(version: PartitionVersion) extends PartitionOperation
+    final case class RemovePartition(partition: Partition) extends PartitionOperation
+  }
 
 }

@@ -109,7 +109,7 @@ trait MetastoreSpec {
       val (initialVersion, versionAfterFirstUpdate, versionAfterSecondUpdate, versionAfterPartitionRemoved) =
         scenario.unsafeRunSync()
 
-      initialVersion shouldBe TableVersion(Nil)
+      initialVersion shouldBe TableVersion.empty
 
       versionAfterFirstUpdate shouldBe
         TableVersion(

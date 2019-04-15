@@ -21,10 +21,10 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     PartitionSchema(List(PartitionColumn("date")))
   )
 
-  "Writing multiple versions of a date partitioned dataset" should "produce distinct partition versions" ignore {
+  "Writing multiple versions of a date partitioned dataset" should "produce distinct partition versions" in {
 
     import spark.implicits._
-    implicit val tableVersions = new InMemoryTableVersions[IO]()
+    implicit val tableVersions = InMemoryTableVersions[IO].unsafeRunSync()
     implicit val metastore = new SparkHiveMetastore[IO]()
 
     val loader =
@@ -100,14 +100,17 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     //    instead of querying storage directly)
     //   Also: query version history for table
 
+    // Check that we still have the previous version of the updated partition
     spark.read
-      .parquet(tableUri.toString + "2019-03-14/v1")
+      .parquet(tableUri.toString + "/date=2019-03-14/v1")
       .as[Pageview]
       .collect() should contain theSameElementsAs pageviewsDay2
   }
 
   def versionDirs(tableLocation: URI, partition: String): List[String] = {
-    val dir = Paths.get(s"$tableLocation/$partition")
+    assert(tableLocation.toString.startsWith("file://"))
+    val basePath = tableLocation.toString.drop("file://".length)
+    val dir = Paths.get(s"$basePath/$partition")
     val dirList = Option(dir.toFile.list()).map(_.toList).getOrElse(Nil)
     dirList.filter(_.matches("v\\d+"))
   }
