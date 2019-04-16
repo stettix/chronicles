@@ -48,42 +48,40 @@ object Metastore {
   sealed trait TableOperation
 
   object TableOperation {
-    final case class AddPartition(partitionVersion: PartitionVersion) extends TableOperation
-    final case class UpdatePartitionVersion(partitionVersion: PartitionVersion) extends TableOperation
+    final case class AddPartition(partition: Partition, version: Version) extends TableOperation
+    final case class UpdatePartitionVersion(partition: Partition, version: Version) extends TableOperation
     final case class RemovePartition(partition: Partition) extends TableOperation
-    final case class UpdateTableVersion(versionNumber: VersionNumber) extends TableOperation
+    final case class UpdateTableVersion(versionNumber: Version) extends TableOperation
   }
 
   def computeChanges(oldVersion: TableVersion, newVersion: TableVersion): TableChanges = {
 
-    val operations = if (oldVersion.partitionVersions.map(_.partition) == List(Partition.snapshotPartition)) {
-      assert(newVersion.partitionVersions.map(_.partition) == List(Partition.snapshotPartition),
+    val operations = if (oldVersion.partitionVersions.keys.toList == List(Partition.snapshotPartition)) {
+      assert(newVersion.partitionVersions.keys.toList == List(Partition.snapshotPartition),
              "Can't change table from snapshot table to partitioned")
 
-      if (oldVersion.partitionVersions.head.version != newVersion.partitionVersions.head.version)
-        List(UpdateTableVersion(newVersion.partitionVersions.head.version))
+      val newPartitionVersion = newVersion.partitionVersions(Partition.snapshotPartition)
+      if (oldVersion.partitionVersions(Partition.snapshotPartition) != newPartitionVersion)
+        List(UpdateTableVersion(newPartitionVersion))
       else
         Nil
-
     } else {
-      val oldPartitionVersions = oldVersion.partitionVersions.map(pv => pv.partition -> pv.version).toMap
-      val newPartitionVersions = newVersion.partitionVersions.map(pv => pv.partition -> pv.version).toMap
 
-      val oldPartitions = oldVersion.partitionVersions.map(_.partition)
-      val newPartitions = newVersion.partitionVersions.map(_.partition)
+      val oldPartitions = oldVersion.partitionVersions.keys.toList
+      val newPartitions = newVersion.partitionVersions.keys.toList
 
       val addedPartitions = newPartitions diff oldPartitions
       val removedPartitions = oldPartitions diff newPartitions
       val updatedPartitions = (oldPartitions intersect newPartitions).filter { partition =>
-        oldPartitionVersions(partition) != newPartitionVersions(partition)
+        oldVersion.partitionVersions(partition) != newVersion.partitionVersions(partition)
       }
 
       val addOperations =
-        addedPartitions.map(partition => AddPartition(PartitionVersion(partition, newPartitionVersions(partition))))
+        addedPartitions.map(partition => AddPartition(partition, newVersion.partitionVersions(partition)))
       val removeOperations =
         removedPartitions.map(RemovePartition)
-      val updateOperations = updatedPartitions.map(partition =>
-        UpdatePartitionVersion(PartitionVersion(partition, newPartitionVersions(partition))))
+      val updateOperations =
+        updatedPartitions.map(partition => UpdatePartitionVersion(partition, newVersion.partitionVersions(partition)))
 
       addOperations ++ removeOperations ++ updateOperations
     }

@@ -29,15 +29,15 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
         partitionLocation(table, toPartitionExpr(partition)).map(location => partition -> location)
       }
 
-      partitionVersions: List[PartitionVersion] = partitionLocations.map {
-        case (partition, location) => PartitionVersion(parsePartition(partition), parseVersion(location))
+      partitionVersions = partitionLocations.map {
+        case (partition, location) => parsePartition(partition) -> parseVersion(location)
       }
-    } yield TableVersion(partitionVersions)
+    } yield TableVersion(partitionVersions.toMap)
 
     val snapshotTableVersion: F[TableVersion] = for {
       tableLocation <- findTableLocation(table)
       versionNumber = parseVersion(tableLocation)
-    } yield TableVersion(List(PartitionVersion(Partition.snapshotPartition, versionNumber)))
+    } yield TableVersion(Map(Partition.snapshotPartition -> versionNumber))
 
     // Choose the calculation to perform based on whether we have a partitioned table or not
     isPartitioned(table).flatMap(partitioned => if (partitioned) partitionedTableVersion else snapshotTableVersion)
@@ -48,13 +48,13 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
 
   private def appliedOp(table: TableName)(operation: TableOperation): F[Unit] =
     operation match {
-      case AddPartition(partitionVersion)           => addPartition(table, partitionVersion)
-      case UpdatePartitionVersion(partitionVersion) => updatePartitionVersion(table, partitionVersion)
-      case RemovePartition(partition)               => removePartition(table, partition)
-      case UpdateTableVersion(versionNumber)        => updateTableLocation(table, versionNumber)
+      case AddPartition(partition, version)           => addPartition(table, partition, version)
+      case UpdatePartitionVersion(partition, version) => updatePartitionVersion(table, partition, version)
+      case RemovePartition(partition)                 => removePartition(table, partition)
+      case UpdateTableVersion(versionNumber)          => updateTableLocation(table, versionNumber)
     }
 
-  private def addPartition(table: TableName, partitionVersion: PartitionVersion): F[Unit] = {
+  private def addPartition(table: TableName, partition: Partition, version: Version): F[Unit] = {
 
     def addPartition(partitionExpr: String, partitionLocation: URI): F[Unit] = {
       val addPartitionQuery =
@@ -62,22 +62,23 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
       performUpdate(s"Adding partition to table ${table.fullyQualifiedName}", addPartitionQuery)
     }
 
-    val partitionExpr = toHivePartitionExpr(partitionVersion.partition)
+    val partitionExpr = toHivePartitionExpr(partition)
 
-    versionedPartitionLocation(table, partitionVersion).flatMap(location => addPartition(partitionExpr, location).void)
+    versionedPartitionLocation(table, partition, version).flatMap(location =>
+      addPartition(partitionExpr, location).void)
   }
 
-  private def updatePartitionVersion(table: TableName, partitionVersion: PartitionVersion): F[Unit] = {
+  private def updatePartitionVersion(table: TableName, partition: Partition, version: Version): F[Unit] = {
 
     def updatePartition(partitionExpr: String, partitionLocation: URI): F[Unit] = {
       val updatePartitionQuery =
         s"ALTER TABLE ${table.fullyQualifiedName} PARTITION $partitionExpr SET LOCATION '$partitionLocation'"
-      performUpdate(s"Updating partition version of partition ${partitionVersion.partition}", updatePartitionQuery)
+      performUpdate(s"Updating partition version of partition ${partition}", updatePartitionQuery)
     }
 
-    val partitionExpr = toHivePartitionExpr(partitionVersion.partition)
+    val partitionExpr = toHivePartitionExpr(partition)
 
-    versionedPartitionLocation(table, partitionVersion).flatMap(location =>
+    versionedPartitionLocation(table, partition, version).flatMap(location =>
       updatePartition(partitionExpr, location).void)
   }
 
@@ -88,7 +89,7 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
     performUpdate(s"Removing partition $partition from table ${table.fullyQualifiedName}", removePartitionQuery)
   }
 
-  private def updateTableLocation(table: TableName, version: VersionNumber): F[Unit] = {
+  private def updateTableLocation(table: TableName, version: Version): F[Unit] = {
     def updateLocation(tableLocation: URI): F[Unit] = {
       val versionedPath = VersionPaths.pathFor(tableLocation, version)
       val updateQuery = s"ALTER TABLE ${table.fullyQualifiedName} SET LOCATION '$versionedPath'"
@@ -98,11 +99,11 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
     findTableLocation(table).map(versionedToBasePath).flatMap(updateLocation).void
   }
 
-  private def versionedPartitionLocation(table: TableName, partitionVersion: PartitionVersion): F[URI] =
+  private def versionedPartitionLocation(table: TableName, partition: Partition, version: Version): F[URI] =
     for {
       tableLocation <- findTableLocation(table)
-      partitionLocation <- F.delay(partitionVersion.partition.resolvePath(tableLocation))
-      versionedPartitionLocation <- F.delay(VersionPaths.pathFor(partitionLocation, partitionVersion.version))
+      partitionLocation <- F.delay(partition.resolvePath(tableLocation))
+      versionedPartitionLocation <- F.delay(VersionPaths.pathFor(partitionLocation, version))
     } yield versionedPartitionLocation
 
   private def performUpdate(description: String, query: String): F[Unit] =
@@ -186,11 +187,11 @@ object SparkHiveMetastore {
 
   private val VersionRegex = "v(\\d+)$".r
 
-  private[spark] def parseVersion(location: URI): VersionNumber = {
+  private[spark] def parseVersion(location: URI): Version = {
     val maybeVersionStr = location.toString.split("/").lastOption
     maybeVersionStr match {
-      case Some(VersionRegex(versionStr)) => VersionNumber(versionStr.toInt)
-      case _                              => VersionNumber(0)
+      case Some(VersionRegex(versionStr)) => Version(versionStr.toInt)
+      case _                              => Version(0)
     }
   }
 

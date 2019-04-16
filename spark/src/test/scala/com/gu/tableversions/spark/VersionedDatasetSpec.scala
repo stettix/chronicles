@@ -109,10 +109,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
 
     // Stub metastore
-    val initialTableVersion = TableVersion(partitionVersions = Nil)
-    val nextPartitionVersions = List(PartitionVersion(Partition.snapshotPartition, VersionNumber(1)))
+    val initialTableVersion = TableVersion(partitionVersions = Map.empty)
+    val nextPartitionVersions = Map(Partition.snapshotPartition -> Version(1))
 
-    val stubbedChanges = TableChanges(nextPartitionVersions.map(AddPartition))
+    val stubbedChanges = TableChanges(nextPartitionVersions.map(AddPartition.tupled).toList)
     implicit val stubMetastore: Metastore[IO] = new StubMetastore(
       currentVersion = initialTableVersion,
       computedChanges = stubbedChanges
@@ -159,13 +159,13 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
     val eventsTable = TableDefinition(TableName(schema, "events"), tableUri, PartitionSchema.snapshot)
 
-    val initialTableVersion = TableVersion(partitionVersions = Nil)
-    val nextPartitionVersions = List(
-      PartitionVersion(Partition(PartitionColumn("date"), "2019-01-15"), VersionNumber(3)),
-      PartitionVersion(Partition(PartitionColumn("date"), "2019-01-16"), VersionNumber(2)),
-      PartitionVersion(Partition(PartitionColumn("date"), "2019-01-17"), VersionNumber(1))
+    val initialTableVersion = TableVersion(partitionVersions = Map.empty)
+    val nextPartitionVersions = Map(
+      Partition(PartitionColumn("date"), "2019-01-15") -> Version(3),
+      Partition(PartitionColumn("date"), "2019-01-16") -> Version(2),
+      Partition(PartitionColumn("date"), "2019-01-17") -> Version(1)
     )
-    val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition))
+    val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
 
     // Stub metastore
     implicit val stubMetastore: Metastore[IO] = new StubMetastore(
@@ -225,7 +225,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   class StubTableVersions(
       currentVersions: Map[TableName, TableVersion],
-      nextVersions: Map[TableName, List[PartitionVersion]],
+      nextVersions: Map[TableName, Map[Partition, Version]],
       committedTableUpdatesRef: Ref[IO, List[(TableName, TableVersions.TableUpdate)]])
       extends TableVersions[IO] {
 
@@ -238,7 +238,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     override def currentVersion(table: TableName): IO[TableVersion] =
       IO(currentVersions(table))
 
-    override def nextVersions(table: TableName, partitions: List[Partition]): IO[List[PartitionVersion]] =
+    override def nextVersions(table: TableName, partitions: List[Partition]): IO[Map[Partition, Version]] =
       IO(nextVersions(table))
 
     override def commit(table: TableName, newVersion: TableVersions.TableUpdate): IO[TableVersions.CommitResult] =

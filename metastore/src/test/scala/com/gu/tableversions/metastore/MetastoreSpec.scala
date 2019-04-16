@@ -28,15 +28,15 @@ trait MetastoreSpec {
 
         initialVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(VersionNumber(1)))))
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(1)))))
 
         firstUpdatedVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(VersionNumber(42)))))
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(42)))))
 
         secondUpdatedVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(VersionNumber(1)))))
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(1)))))
 
         revertedVersion <- metastore.currentVersion(table)
 
@@ -44,11 +44,11 @@ trait MetastoreSpec {
 
       val (initialVersion, firstUpdatedVersion, secondUpdatedVersion, revertedVersion) = scenario.unsafeRunSync()
 
-      initialVersion shouldBe TableVersion(List(PartitionVersion(Partition.snapshotPartition, VersionNumber(0))))
+      initialVersion shouldBe TableVersion(Map(Partition.snapshotPartition -> Version(0)))
       firstUpdatedVersion shouldBe
-        TableVersion(List(PartitionVersion(Partition.snapshotPartition, VersionNumber(1))))
+        TableVersion(Map(Partition.snapshotPartition -> Version(1)))
       secondUpdatedVersion shouldBe
-        TableVersion(List(PartitionVersion(Partition.snapshotPartition, VersionNumber(42))))
+        TableVersion(Map(Partition.snapshotPartition -> Version(42)))
       revertedVersion shouldEqual firstUpdatedVersion
     }
 
@@ -72,9 +72,9 @@ trait MetastoreSpec {
           table,
           TableChanges(
             List(
-              AddPartition(PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(0))),
-              AddPartition(PartitionVersion(Partition(dateCol, "2019-03-02"), VersionNumber(1))),
-              AddPartition(PartitionVersion(Partition(dateCol, "2019-03-03"), VersionNumber(1)))
+              AddPartition(Partition(dateCol, "2019-03-01"), Version(0)),
+              AddPartition(Partition(dateCol, "2019-03-02"), Version(1)),
+              AddPartition(Partition(dateCol, "2019-03-03"), Version(1))
             )
           )
         )
@@ -85,8 +85,8 @@ trait MetastoreSpec {
           table,
           TableChanges(
             List(
-              UpdatePartitionVersion(PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(1))),
-              UpdatePartitionVersion(PartitionVersion(Partition(dateCol, "2019-03-03"), VersionNumber(2)))
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), Version(1)),
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-03"), Version(2))
             )
           )
         )
@@ -113,25 +113,25 @@ trait MetastoreSpec {
 
       versionAfterFirstUpdate shouldBe
         TableVersion(
-          List(
-            PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(0)),
-            PartitionVersion(Partition(dateCol, "2019-03-02"), VersionNumber(1)),
-            PartitionVersion(Partition(dateCol, "2019-03-03"), VersionNumber(1))
+          Map(
+            Partition(dateCol, "2019-03-01") -> Version(0),
+            Partition(dateCol, "2019-03-02") -> Version(1),
+            Partition(dateCol, "2019-03-03") -> Version(1)
           ))
 
       versionAfterSecondUpdate shouldBe
         TableVersion(
-          List(
-            PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(1)),
-            PartitionVersion(Partition(dateCol, "2019-03-02"), VersionNumber(1)),
-            PartitionVersion(Partition(dateCol, "2019-03-03"), VersionNumber(2))
+          Map(
+            Partition(dateCol, "2019-03-01") -> Version(1),
+            Partition(dateCol, "2019-03-02") -> Version(1),
+            Partition(dateCol, "2019-03-03") -> Version(2)
           ))
 
       versionAfterPartitionRemoved shouldBe
         TableVersion(
-          List(
-            PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(1)),
-            PartitionVersion(Partition(dateCol, "2019-03-03"), VersionNumber(2))
+          Map(
+            Partition(dateCol, "2019-03-01") -> Version(1),
+            Partition(dateCol, "2019-03-03") -> Version(2)
           ))
 
     }
@@ -157,7 +157,7 @@ trait MetastoreSpec {
           table,
           TableChanges(
             List(
-              UpdatePartitionVersion(PartitionVersion(Partition(dateCol, "2019-03-01"), VersionNumber(1)))
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), Version(1))
             )
           )
         )

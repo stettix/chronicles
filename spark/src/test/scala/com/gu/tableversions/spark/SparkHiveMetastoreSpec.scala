@@ -87,14 +87,14 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   }
 
   "Parsing the version from versioned paths" should "produce the version number" in {
-    parseVersion(new URI("file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/v5")) shouldBe VersionNumber(5)
-    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21/v5")) shouldBe VersionNumber(5)
-    parseVersion(new URI("s3://bucket/identity/v42")) shouldBe VersionNumber(42)
+    parseVersion(new URI("file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/v5")) shouldBe Version(5)
+    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21/v5")) shouldBe Version(5)
+    parseVersion(new URI("s3://bucket/identity/v42")) shouldBe Version(42)
   }
 
   "Parsing the version from unversioned paths" should "produce version 0" in {
-    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21")) shouldBe VersionNumber(0)
-    parseVersion(new URI("s3://bucket/identity")) shouldBe VersionNumber(0)
+    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21")) shouldBe Version(0)
+    parseVersion(new URI("s3://bucket/identity")) shouldBe Version(0)
   }
 
   "Converting a partition path to a Hive partition expression" should "do the expected conversion" in {

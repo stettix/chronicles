@@ -53,15 +53,7 @@ object PartitionSchema {
 // Versions
 //
 
-final case class VersionNumber(number: Int) extends AnyVal
-
-final case class PartitionVersion(partition: Partition, version: VersionNumber)
-
-object PartitionVersion {
-
-  def snapshot(version: VersionNumber): PartitionVersion = PartitionVersion(Partition.snapshotPartition, version)
-
-}
+final case class Version(number: Int) extends AnyVal
 
 //
 // Tables
@@ -76,12 +68,12 @@ final case class TableDefinition(name: TableName, location: URI, partitionSchema
 /**
   * The complete set of version information for all partitions in a table.
   */
-final case class TableVersion(partitionVersions: List[PartitionVersion])
+final case class TableVersion(partitionVersions: Map[Partition, Version])
 
 object TableVersion {
 
-  def snapshotVersion(version: VersionNumber): TableVersion = TableVersion(List(PartitionVersion.snapshot(version)))
+  def snapshotVersion(version: Version): TableVersion = TableVersion(Map(Partition.snapshotPartition -> version))
 
-  val empty = TableVersion(Nil)
+  val empty = TableVersion(Map.empty)
 
 }

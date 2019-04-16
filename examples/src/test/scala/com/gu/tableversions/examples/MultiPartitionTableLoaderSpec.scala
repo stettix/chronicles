@@ -71,27 +71,19 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     val tableVersionAfterUpdate = metastore.currentVersion(table.name).unsafeRunSync()
     tableVersionAfterUpdate shouldBe
       TableVersion(
-        List(
-          PartitionVersion(
-            Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-13"),
-                           ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))),
-            VersionNumber(1)
-          ),
-          PartitionVersion(
-            Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
-                           ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))),
-            VersionNumber(1)
-          ),
-          PartitionVersion(
-            Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
-                           ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))),
-            VersionNumber(2)
-          ),
-          PartitionVersion(
-            Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-15"),
-                           ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))),
-            VersionNumber(2)
-          )
+        Map(
+          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-13"),
+                         ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))) ->
+            Version(1),
+          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
+                         ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))) ->
+            Version(1),
+          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
+                         ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))) ->
+            Version(2),
+          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-15"),
+                         ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))) ->
+            Version(2)
         ))
 
     // Query to check we see the updated version

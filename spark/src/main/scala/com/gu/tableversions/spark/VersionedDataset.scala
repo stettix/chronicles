@@ -58,9 +58,11 @@ object VersionedDataset {
       _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
 
       // Commit written version
-      _ <- tableVersions.commit(
-        table.name,
-        TableUpdate(userId, UpdateMessage(message), Instant.now(), workingVersions.map(AddPartitionVersion)))
+      _ <- tableVersions.commit(table.name,
+                                TableUpdate(userId,
+                                            UpdateMessage(message),
+                                            Instant.now(),
+                                            workingVersions.map(AddPartitionVersion.tupled).toList))
 
       // Get latest version details and Metastore table details and sync the Metastore to match,
       // effectively switching the table to the new version.

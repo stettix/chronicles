@@ -19,7 +19,7 @@ trait TableVersions[F[_]] {
   def currentVersion(table: TableName): F[TableVersion]
 
   /** Get a description of which version to write to next for the given partitions of a table. */
-  def nextVersions(table: TableName, partitions: List[Partition]): F[List[PartitionVersion]]
+  def nextVersions(table: TableName, partitions: List[Partition]): F[Map[Partition, Version]]
 
   /**
     * Update partition versions to the given versions.
@@ -48,7 +48,7 @@ object TableVersions {
 
   object CommitResult {
     case object SuccessfulCommit extends CommitResult
-    final case class InvalidCommit(invalidPartitions: Map[PartitionVersion, ErrorMessage]) extends CommitResult
+    final case class InvalidCommit(invalidPartitions: Map[Partition, ErrorMessage]) extends CommitResult
   }
 
   case class ErrorMessage(value: String) extends AnyVal
@@ -57,7 +57,7 @@ object TableVersions {
   sealed trait PartitionOperation
 
   object PartitionOperation {
-    final case class AddPartitionVersion(version: PartitionVersion) extends PartitionOperation
+    final case class AddPartitionVersion(partition: Partition, version: Version) extends PartitionOperation
     final case class RemovePartition(partition: Partition) extends PartitionOperation
   }
 
