@@ -50,7 +50,7 @@ class InMemoryTableVersions[F[_]] private (allUpdates: Ref[F, TableUpdates])(imp
       allTableUpdates <- allUpdates.get
       tableUpdates <- allTableUpdates
         .get(table)
-        .fold(F.raiseError[List[TableUpdate]](new Exception(s"Table '$table' not found")))(F.pure)
+        .fold(F.raiseError[List[TableUpdate]](new Exception(s"Table '${table.fullyQualifiedName}' not found")))(F.pure)
       addedPartitions = tableUpdates.flatMap(_.partitionUpdates).collect {
         case AddPartitionVersion(partitionVersion) => partitionVersion
       }

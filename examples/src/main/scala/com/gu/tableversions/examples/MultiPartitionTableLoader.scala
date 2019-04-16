@@ -1,48 +1,57 @@
 package com.gu.tableversions.examples
 
-import java.net.URI
 import java.sql.{Date, Timestamp}
 
+import cats.effect.IO
+import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.{TableDefinition, TableVersions}
 import com.gu.tableversions.examples.MultiPartitionTableLoader.AdImpression
-import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
+import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.VersionedDataset
+import com.typesafe.scalalogging.LazyLogging
+import org.apache.spark.sql.{Dataset, SparkSession}
 
 /**
   * This example contains code that writes example event data to a table with multiple partition columns.
   * It demonstrates how individual partitions in such a table can be updated using versioning.
-  *
-  * @param tableName the fully qualified table name that will be populated by this loader
-  * @param tableLocation The location where the table data will be stored
   */
-class MultiPartitionTableLoader(tableName: String, tableLocation: URI)(implicit val spark: SparkSession) {
+class MultiPartitionTableLoader(table: TableDefinition)(
+    implicit tableVersions: TableVersions[IO],
+    metastore: Metastore[IO],
+    spark: SparkSession)
+    extends LazyLogging {
 
   import spark.implicits._
 
   def initTable(): Unit = {
-    val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS $tableName (
+    val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `user_id` string,
                  |  `ad_id` string,
                  |  `timestamp` timestamp
                  |)
                  |PARTITIONED BY (`impression_date` date, `processed_date` date)
                  |STORED AS parquet
-                 |LOCATION '$tableLocation'
+                 |LOCATION '${table.location}'
     """.stripMargin
 
     spark.sql(ddl)
     ()
+
+    // Initialise version tracking for table
+    tableVersions.init(table.name).unsafeRunSync()
   }
 
-  def insert(dataset: Dataset[AdImpression]): Unit = {
-    // Currently, this just uses the basic implementation of writing data to tables via Hive.
-    // This will not do any versioning as-is - this is the implementation we need to replace
-    // with new functionality in this project.
-    dataset.write
-      .mode(SaveMode.Overwrite)
-      .insertInto(tableName)
+  def insert(dataset: Dataset[AdImpression], userId: UserId, message: String): Unit = {
+    import VersionedDataset._
+
+    val (latestVersion, metastoreChanges) = dataset.versionedInsertInto(table, userId, message)
+
+    logger.info(s"Updated table $table, new version details:\n$latestVersion")
+    logger.info(s"Applied the the following changes to sync the Metastore:\n$metastoreChanges")
   }
 
   def adImpressions(): Dataset[AdImpression] =
-    spark.table(tableName).as[AdImpression]
+    spark.table(table.name.fullyQualifiedName).as[AdImpression]
 
 }
 

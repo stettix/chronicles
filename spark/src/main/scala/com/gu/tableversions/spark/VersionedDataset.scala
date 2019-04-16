@@ -84,8 +84,8 @@ object VersionedDataset {
     } else {
       // Query dataset for partitions
       // NOTE: this implementation has not been optimised yet
-      val partitionColumnsList = partitionSchema.columns.map(_.name).mkString(", ")
-      val partitionsDf = dataset.selectExpr(s"$partitionColumnsList").distinct()
+      val partitionColumnsList = partitionSchema.columns.map(_.name)
+      val partitionsDf = dataset.selectExpr(partitionColumnsList: _*).distinct()
       val partitionRows = partitionsDf.collect().toList
 
       def rowToPartition(row: Row): Partition = {
