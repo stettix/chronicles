@@ -6,7 +6,7 @@ import java.sql.{Date, Timestamp}
 import cats.effect.IO
 import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
 import com.gu.tableversions.core._
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.examples.MultiPartitionTableLoader.AdImpression
 import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
@@ -26,14 +26,15 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     )
 
     val loader = new MultiPartitionTableLoader(table)
-    loader.initTable()
+    val userId1 = UserId("test user 1")
+
+    loader.initTable(userId1, UpdateMessage("init"))
 
     val impressionsDay1 = List(
       AdImpression("user-1", "ad-1", Timestamp.valueOf("2019-03-13 23:59:00"), Date.valueOf("2019-03-14")),
       AdImpression("user-2", "ad-1", Timestamp.valueOf("2019-03-14 00:00:10"), Date.valueOf("2019-03-14")),
       AdImpression("user-3", "ad-2", Timestamp.valueOf("2019-03-14 00:00:20"), Date.valueOf("2019-03-14"))
     )
-    val userId1 = UserId("test user 1")
 
     loader.insert(impressionsDay1.toDS(), userId1, "Day 1 initial commit")
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1
@@ -70,7 +71,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     // to try to avoid this.
     val tableVersionAfterUpdate = metastore.currentVersion(table.name).unsafeRunSync()
     tableVersionAfterUpdate shouldBe
-      TableVersion(
+      PartitionedTableVersion(
         Map(
           Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-13"),
                          ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))) ->

@@ -68,12 +68,6 @@ final case class TableDefinition(name: TableName, location: URI, partitionSchema
 /**
   * The complete set of version information for all partitions in a table.
   */
-final case class TableVersion(partitionVersions: Map[Partition, Version])
-
-object TableVersion {
-
-  def snapshotVersion(version: Version): TableVersion = TableVersion(Map(Partition.snapshotPartition -> version))
-
-  val empty = TableVersion(Map.empty)
-
-}
+sealed trait TableVersion
+final case class PartitionedTableVersion(partitionVersions: Map[Partition, Version]) extends TableVersion
+final case class SnapshotTableVersion(version: Version) extends TableVersion

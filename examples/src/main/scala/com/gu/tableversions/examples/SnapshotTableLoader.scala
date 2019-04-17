@@ -1,13 +1,17 @@
 package com.gu.tableversions.examples
 
+import java.time.Instant
+
 import cats.effect.IO
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.examples.SnapshotTableLoader.User
 import com.gu.tableversions.metastore.Metastore
 import com.gu.tableversions.spark.VersionedDataset
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.spark.sql.{Dataset, SparkSession}
+
+import scala.collection.script.Update
 
 /**
   * This is an example of loading data into a 'snapshot' table, that is, a table where we replace all the content
@@ -21,7 +25,7 @@ class SnapshotTableLoader(table: TableDefinition)(
 
   import spark.implicits._
 
-  def initTable(): Unit = {
+  def initTable(userId: UserId, message: UpdateMessage): Unit = {
     // Create table schema in metastore
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `id` string,
@@ -35,7 +39,7 @@ class SnapshotTableLoader(table: TableDefinition)(
     spark.sql(ddl)
 
     // Initialise version tracking for table
-    tableVersions.init(table.name).unsafeRunSync()
+    tableVersions.init(table.name, isSnapshot = true, userId, message, Instant.now()).unsafeRunSync()
   }
 
   def users(): Dataset[User] =

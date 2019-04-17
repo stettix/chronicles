@@ -1,9 +1,10 @@
 package com.gu.tableversions.examples
 
 import java.sql.{Date, Timestamp}
+import java.time.Instant
 
 import cats.effect.IO
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core.{TableDefinition, TableVersions}
 import com.gu.tableversions.examples.MultiPartitionTableLoader.AdImpression
 import com.gu.tableversions.metastore.Metastore
@@ -23,7 +24,7 @@ class MultiPartitionTableLoader(table: TableDefinition)(
 
   import spark.implicits._
 
-  def initTable(): Unit = {
+  def initTable(userId: UserId, message: UpdateMessage): Unit = {
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `user_id` string,
                  |  `ad_id` string,
@@ -38,7 +39,7 @@ class MultiPartitionTableLoader(table: TableDefinition)(
     ()
 
     // Initialise version tracking for table
-    tableVersions.init(table.name).unsafeRunSync()
+    tableVersions.init(table.name, isSnapshot = false, userId, message, Instant.now()).unsafeRunSync()
   }
 
   def insert(dataset: Dataset[AdImpression], userId: UserId, message: String): Unit = {

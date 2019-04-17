@@ -2,7 +2,7 @@ package com.gu.tableversions.core
 
 import java.time.Instant
 
-import com.gu.tableversions.core.TableVersions.CommitResult
+import com.gu.tableversions.core.TableVersions.{CommitResult, UpdateMessage, UserId}
 
 /**
   * This defines the interface for querying and updating table version information tracked by the system.
@@ -13,7 +13,7 @@ trait TableVersions[F[_]] {
     * Start tracking version information for given table.
     * This must be called before any other operations can be performed on this table.
     */
-  def init(table: TableName): F[Unit]
+  def init(table: TableName, isSnapshot: Boolean, userId: UserId, message: UpdateMessage, timestamp: Instant): F[Unit]
 
   /** Get details about partition versions in a table. */
   def currentVersion(table: TableName): F[TableVersion]
@@ -37,7 +37,7 @@ object TableVersions {
       userId: UserId,
       message: UpdateMessage,
       timestamp: Instant,
-      partitionUpdates: List[PartitionOperation])
+      operations: List[TableOperation])
 
   final case class UpdateMessage(content: String) extends AnyVal
 
@@ -53,12 +53,14 @@ object TableVersions {
 
   case class ErrorMessage(value: String) extends AnyVal
 
-  /** ADT for operations on individual partitions. */
-  sealed trait PartitionOperation
+  /** ADT for operations on tables. */
+  sealed trait TableOperation
 
-  object PartitionOperation {
-    final case class AddPartitionVersion(partition: Partition, version: Version) extends PartitionOperation
-    final case class RemovePartition(partition: Partition) extends PartitionOperation
+  object TableOperation {
+    final case class InitTable(tableName: TableName, isSnapshot: Boolean) extends TableOperation
+    final case class AddTableVersion(version: Version) extends TableOperation
+    final case class AddPartitionVersion(partition: Partition, version: Version) extends TableOperation
+    final case class RemovePartition(partition: Partition) extends TableOperation
   }
 
 }

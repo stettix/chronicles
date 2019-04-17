@@ -1,7 +1,7 @@
 package com.gu.tableversions.metastore
 
 import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core.{Partition, TableVersion, Version}
+import com.gu.tableversions.core.{Partition, PartitionedTableVersion, SnapshotTableVersion, TableVersion, Version}
 import com.gu.tableversions.metastore.Metastore.TableOperation._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -10,13 +10,13 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
   val date = PartitionColumn("date")
 
   "Computing differences" should "produce operations to add new partitions" in {
-    val oldVersion = TableVersion.empty
+    val oldVersion = PartitionedTableVersion(Map.empty)
 
     val newPartitionVersions = Map(
       Partition(date, "2019-03-01") -> Version(3),
       Partition(date, "2019-03-03") -> Version(1)
     )
-    val newVersion = TableVersion(newPartitionVersions)
+    val newVersion = PartitionedTableVersion(newPartitionVersions)
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
@@ -31,9 +31,9 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
       Partition(date, "2019-03-01") -> Version(3),
       Partition(date, "2019-03-03") -> Version(1)
     )
-    val oldVersion = TableVersion(oldPartitionVersions)
+    val oldVersion = PartitionedTableVersion(oldPartitionVersions)
 
-    val newVersion = TableVersion.empty
+    val newVersion = PartitionedTableVersion(Map.empty)
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
@@ -45,10 +45,10 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
 
   it should "produce operations to update the versions of existing partitions" in {
     val oldPartitionVersions = Map(Partition(date, "2019-03-01") -> Version(1))
-    val oldVersion = TableVersion(oldPartitionVersions)
+    val oldVersion = PartitionedTableVersion(oldPartitionVersions)
 
     val newPartitionVersions = Map(Partition(date, "2019-03-01") -> Version(2))
-    val newVersion = TableVersion(newPartitionVersions)
+    val newVersion = PartitionedTableVersion(newPartitionVersions)
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
@@ -57,11 +57,8 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
   }
 
   it should "produce an operation to update the version of a table for an updated snapshot table version" in {
-    val oldPartitionVersions = Map(Partition.snapshotPartition -> Version(1))
-    val oldVersion = TableVersion(oldPartitionVersions)
-
-    val newPartitionVersions = Map(Partition.snapshotPartition -> Version(2))
-    val newVersion = TableVersion(newPartitionVersions)
+    val oldVersion = SnapshotTableVersion(Version(1))
+    val newVersion = SnapshotTableVersion(Version(2))
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
@@ -69,8 +66,7 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
   }
 
   it should "produce no change for a snapshot table with the same version" in {
-    val partitionVersions = Map(Partition.snapshotPartition -> Version(1))
-    val version = TableVersion(partitionVersions)
+    val version = SnapshotTableVersion(Version(1))
 
     val changes = Metastore.computeChanges(version, version)
 

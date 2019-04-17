@@ -6,7 +6,7 @@ import java.sql.Timestamp
 
 import cats.effect.IO
 import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
@@ -29,7 +29,9 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
     val loader =
       new DatePartitionedTableLoader(table)
-    loader.initTable()
+
+    val userId = UserId("test user")
+    loader.initTable(userId, UpdateMessage("init"))
 
     val pageviewsDay1 = List(
       Pageview("user-1", "news/politics", Timestamp.valueOf("2019-03-13 00:20:00")),
@@ -38,7 +40,6 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
       Pageview("user-3", "sport/football", Timestamp.valueOf("2019-03-13 21:00:00"))
     )
 
-    val userId = UserId("test user")
     loader.insert(pageviewsDay1.toDS(), userId, "Day 1 initial commit")
 
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1

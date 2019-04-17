@@ -5,11 +5,13 @@ import java.time.Instant
 
 import cats.effect.IO
 import com.gu.tableversions.core.TableVersions.{TableUpdate, UpdateMessage, UserId}
-import com.gu.tableversions.core.TableVersions.PartitionOperation.AddPartitionVersion
+import com.gu.tableversions.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion}
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
 import org.apache.spark.sql.{Dataset, Row, SparkSession}
+
+import scala.collection.immutable
 
 /**
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
@@ -58,11 +60,9 @@ object VersionedDataset {
       _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
 
       // Commit written version
-      _ <- tableVersions.commit(table.name,
-                                TableUpdate(userId,
-                                            UpdateMessage(message),
-                                            Instant.now(),
-                                            workingVersions.map(AddPartitionVersion.tupled).toList))
+      _ <- tableVersions.commit(
+        table.name,
+        TableUpdate(userId, UpdateMessage(message), Instant.now(), operationsForPartitions(workingVersions)))
 
       // Get latest version details and Metastore table details and sync the Metastore to match,
       // effectively switching the table to the new version.
@@ -75,6 +75,12 @@ object VersionedDataset {
       _ <- metastore.update(table.name, metastoreUpdate)
 
     } yield (latestTableVersion, metastoreUpdate)
+
+  private def operationsForPartitions(workingVersions: Map[Partition, Version]): List[TableVersions.TableOperation] = {
+    if (workingVersions.keys.toList == List(Partition.snapshotPartition))
+      List(AddTableVersion(workingVersions(Partition.snapshotPartition)))
+    else workingVersions.map(AddPartitionVersion.tupled).toList
+  }
 
   /**
     * Get the unique partition values that exist within the given dataset, based on given partition columns.

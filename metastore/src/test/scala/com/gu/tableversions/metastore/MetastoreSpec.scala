@@ -44,11 +44,11 @@ trait MetastoreSpec {
 
       val (initialVersion, firstUpdatedVersion, secondUpdatedVersion, revertedVersion) = scenario.unsafeRunSync()
 
-      initialVersion shouldBe TableVersion(Map(Partition.snapshotPartition -> Version(0)))
+      initialVersion shouldBe SnapshotTableVersion(Version(0))
       firstUpdatedVersion shouldBe
-        TableVersion(Map(Partition.snapshotPartition -> Version(1)))
+        SnapshotTableVersion(Version(1))
       secondUpdatedVersion shouldBe
-        TableVersion(Map(Partition.snapshotPartition -> Version(42)))
+        SnapshotTableVersion(Version(42))
       revertedVersion shouldEqual firstUpdatedVersion
     }
 
@@ -109,10 +109,10 @@ trait MetastoreSpec {
       val (initialVersion, versionAfterFirstUpdate, versionAfterSecondUpdate, versionAfterPartitionRemoved) =
         scenario.unsafeRunSync()
 
-      initialVersion shouldBe TableVersion.empty
+      initialVersion shouldBe PartitionedTableVersion(Map.empty)
 
       versionAfterFirstUpdate shouldBe
-        TableVersion(
+        PartitionedTableVersion(
           Map(
             Partition(dateCol, "2019-03-01") -> Version(0),
             Partition(dateCol, "2019-03-02") -> Version(1),
@@ -120,7 +120,7 @@ trait MetastoreSpec {
           ))
 
       versionAfterSecondUpdate shouldBe
-        TableVersion(
+        PartitionedTableVersion(
           Map(
             Partition(dateCol, "2019-03-01") -> Version(1),
             Partition(dateCol, "2019-03-02") -> Version(1),
@@ -128,7 +128,7 @@ trait MetastoreSpec {
           ))
 
       versionAfterPartitionRemoved shouldBe
-        TableVersion(
+        PartitionedTableVersion(
           Map(
             Partition(dateCol, "2019-03-01") -> Version(1),
             Partition(dateCol, "2019-03-03") -> Version(2)

@@ -4,7 +4,7 @@ import java.net.URI
 import java.nio.file.Paths
 
 import cats.effect.IO
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
@@ -24,7 +24,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     val userId = UserId("test user")
 
     val loader = new SnapshotTableLoader(table)
-    loader.initTable()
+    loader.initTable(userId, UpdateMessage("init"))
 
     // Write the data to the table
     val identitiesDay1 = List(

@@ -1,9 +1,10 @@
 package com.gu.tableversions.examples
 
 import java.sql.{Date, Timestamp}
+import java.time.Instant
 
 import cats.effect.IO
-import com.gu.tableversions.core.TableVersions.UserId
+import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.examples.DatePartitionedTableLoader.Pageview
 import com.gu.tableversions.metastore.Metastore
@@ -23,7 +24,7 @@ class DatePartitionedTableLoader(table: TableDefinition)(
 
   import spark.implicits._
 
-  def initTable(): Unit = {
+  def initTable(userId: UserId, message: UpdateMessage): Unit = {
     // Create table schema in metastore
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `id` string,
@@ -38,7 +39,7 @@ class DatePartitionedTableLoader(table: TableDefinition)(
     spark.sql(ddl)
 
     // Initialise version tracking for table
-    tableVersions.init(table.name).unsafeRunSync()
+    tableVersions.init(table.name, isSnapshot = false, userId, message, Instant.now()).unsafeRunSync()
   }
 
   def pageviews(): Dataset[Pageview] =

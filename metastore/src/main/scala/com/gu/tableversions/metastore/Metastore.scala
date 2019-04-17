@@ -54,39 +54,34 @@ object Metastore {
     final case class UpdateTableVersion(versionNumber: Version) extends TableOperation
   }
 
-  def computeChanges(oldVersion: TableVersion, newVersion: TableVersion): TableChanges = {
+  def computeChanges(oldVersion: TableVersion, newVersion: TableVersion): TableChanges =
+    (oldVersion, newVersion) match {
+      case (SnapshotTableVersion(oldSnapshotVersion), SnapshotTableVersion(newSnapshotVersion)) =>
+        if (oldSnapshotVersion != newSnapshotVersion) TableChanges(List(UpdateTableVersion(newSnapshotVersion)))
+        else TableChanges(Nil)
 
-    val operations = if (oldVersion.partitionVersions.keys.toList == List(Partition.snapshotPartition)) {
-      assert(newVersion.partitionVersions.keys.toList == List(Partition.snapshotPartition),
-             "Can't change table from snapshot table to partitioned")
+      case (PartitionedTableVersion(oldPartitionVersions), PartitionedTableVersion(newPartitionVersions)) => {
+        val oldPartitions = oldPartitionVersions.keys.toList
+        val newPartitions = newPartitionVersions.keys.toList
 
-      val newPartitionVersion = newVersion.partitionVersions(Partition.snapshotPartition)
-      if (oldVersion.partitionVersions(Partition.snapshotPartition) != newPartitionVersion)
-        List(UpdateTableVersion(newPartitionVersion))
-      else
-        Nil
-    } else {
+        val addedPartitions = newPartitions diff oldPartitions
+        val removedPartitions = oldPartitions diff newPartitions
+        val updatedPartitions = (oldPartitions intersect newPartitions).filter { partition =>
+          oldPartitionVersions(partition) != newPartitionVersions(partition)
+        }
 
-      val oldPartitions = oldVersion.partitionVersions.keys.toList
-      val newPartitions = newVersion.partitionVersions.keys.toList
+        val addOperations =
+          addedPartitions.map(partition => AddPartition(partition, newPartitionVersions(partition)))
+        val removeOperations =
+          removedPartitions.map(RemovePartition)
+        val updateOperations =
+          updatedPartitions.map(partition => UpdatePartitionVersion(partition, newPartitionVersions(partition)))
 
-      val addedPartitions = newPartitions diff oldPartitions
-      val removedPartitions = oldPartitions diff newPartitions
-      val updatedPartitions = (oldPartitions intersect newPartitions).filter { partition =>
-        oldVersion.partitionVersions(partition) != newVersion.partitionVersions(partition)
+        TableChanges((addOperations ++ removeOperations ++ updateOperations))
       }
 
-      val addOperations =
-        addedPartitions.map(partition => AddPartition(partition, newVersion.partitionVersions(partition)))
-      val removeOperations =
-        removedPartitions.map(RemovePartition)
-      val updateOperations =
-        updatedPartitions.map(partition => UpdatePartitionVersion(partition, newVersion.partitionVersions(partition)))
+      case _ => throw new IllegalArgumentException("Can't change table from snapshot table to partitioned")
 
-      addOperations ++ removeOperations ++ updateOperations
     }
-
-    TableChanges(operations)
-  }
 
 }

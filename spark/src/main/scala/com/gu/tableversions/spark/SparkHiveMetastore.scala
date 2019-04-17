@@ -32,12 +32,12 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
       partitionVersions = partitionLocations.map {
         case (partition, location) => parsePartition(partition) -> parseVersion(location)
       }
-    } yield TableVersion(partitionVersions.toMap)
+    } yield PartitionedTableVersion(partitionVersions.toMap)
 
     val snapshotTableVersion: F[TableVersion] = for {
       tableLocation <- findTableLocation(table)
       versionNumber = parseVersion(tableLocation)
-    } yield TableVersion(Map(Partition.snapshotPartition -> versionNumber))
+    } yield SnapshotTableVersion(versionNumber)
 
     // Choose the calculation to perform based on whether we have a partitioned table or not
     isPartitioned(table).flatMap(partitioned => if (partitioned) partitionedTableVersion else snapshotTableVersion)
