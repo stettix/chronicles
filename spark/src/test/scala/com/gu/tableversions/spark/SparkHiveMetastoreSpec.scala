@@ -35,6 +35,8 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   // Tests specific to the Spark/Hive implementation
   //
 
+  val validVersionLabel = "20181102-235900-4920d06f-2233-4b4a-9521-8e730eee89c5"
+
   "Parsing a valid partition string" should "produce the expected values" in {
     val testData = Table(
       ("partitionStr", "expected"),
@@ -87,14 +89,16 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   }
 
   "Parsing the version from versioned paths" should "produce the version number" in {
-    parseVersion(new URI("file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/v5")) shouldBe Version(5)
-    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21/v5")) shouldBe Version(5)
-    parseVersion(new URI("s3://bucket/identity/v42")) shouldBe Version(42)
+    parseVersion(new URI(s"file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/2019/$validVersionLabel")) shouldBe Version(
+      validVersionLabel)
+    parseVersion(new URI(s"s3://bucket/pageview/date=2019-01-21/$validVersionLabel")) shouldBe Version(
+      validVersionLabel)
+    parseVersion(new URI(s"s3://bucket/identity/$validVersionLabel")) shouldBe Version(validVersionLabel)
   }
 
   "Parsing the version from unversioned paths" should "produce version 0" in {
-    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21")) shouldBe Version(0)
-    parseVersion(new URI("s3://bucket/identity")) shouldBe Version(0)
+    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21")) shouldBe Version.Unversioned
+    parseVersion(new URI("s3://bucket/identity")) shouldBe Version.Unversioned
   }
 
   "Converting a partition path to a Hive partition expression" should "do the expected conversion" in {
@@ -109,12 +113,13 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
     }
   }
 
-  "Getting the base path from a versioned path" should "return the same path if it's already unversioned" in {
+  "Getting the base path" should "return the same path if it's already unversioned" in {
     versionedToBasePath(new URI("hdfs://bucket/identity")) shouldBe new URI("hdfs://bucket/identity")
   }
 
   it should "return strip off the version part of the path" in {
-    versionedToBasePath(new URI("hdfs://bucket/identity/v42")) shouldBe new URI("hdfs://bucket/identity")
+    versionedToBasePath(new URI(s"hdfs://bucket/identity/$validVersionLabel")) shouldBe new URI(
+      "hdfs://bucket/identity")
   }
 
   private def initPartitionedTable(table: TableDefinition): IO[Unit] = {

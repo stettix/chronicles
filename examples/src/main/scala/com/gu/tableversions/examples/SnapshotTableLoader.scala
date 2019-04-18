@@ -20,6 +20,7 @@ import scala.collection.script.Update
 class SnapshotTableLoader(table: TableDefinition)(
     implicit tableVersions: TableVersions[IO],
     metastore: Metastore[IO],
+    generateVersion: IO[Version],
     spark: SparkSession)
     extends LazyLogging {
 

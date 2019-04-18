@@ -73,7 +73,7 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
     def updatePartition(partitionExpr: String, partitionLocation: URI): F[Unit] = {
       val updatePartitionQuery =
         s"ALTER TABLE ${table.fullyQualifiedName} PARTITION $partitionExpr SET LOCATION '$partitionLocation'"
-      performUpdate(s"Updating partition version of partition ${partition}", updatePartitionQuery)
+      performUpdate(s"Updating partition version of partition $partition", updatePartitionQuery)
     }
 
     val partitionExpr = toHivePartitionExpr(partition)
@@ -185,13 +185,11 @@ object SparkHiveMetastore {
     Partition(columnValues)
   }
 
-  private val VersionRegex = "v(\\d+)$".r
-
   private[spark] def parseVersion(location: URI): Version = {
     val maybeVersionStr = location.toString.split("/").lastOption
     maybeVersionStr match {
-      case Some(VersionRegex(versionStr)) => Version(versionStr.toInt)
-      case _                              => Version(0)
+      case Some(Version.TimestampAndUuidRegex(versionLabel)) => Version(versionLabel)
+      case _                                                 => Version.Unversioned
     }
   }
 
@@ -200,9 +198,12 @@ object SparkHiveMetastore {
       val parentPath = new File(uri.getPath).getParent
       new URI(uri.getScheme, uri.getUserInfo, uri.getHost, uri.getPort, parentPath, uri.getQuery, uri.getFragment)
     }
-    if (location.toString.matches(".*/v(\\d+)$"))
+
+    if (parseVersion(location) == Version.Unversioned)
+      location
+    else
       parentPath(location)
-    else location
+
   }
 
 }

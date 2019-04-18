@@ -21,34 +21,37 @@ trait MetastoreSpec {
       table: TableName): Unit = {
 
     it should "allow table versions to be updated for snapshot tables" in {
-
       val scenario = for {
         metastore <- emptyMetastore
         _ <- initHiveTable
 
         initialVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(1)))))
+        version1 <- Version.generateVersion
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(version1))))
 
         firstUpdatedVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(42)))))
+        version2 <- Version.generateVersion
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(version2))))
 
         secondUpdatedVersion <- metastore.currentVersion(table)
 
-        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(Version(1)))))
+        // Revert to previous version
+        _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(version1))))
 
         revertedVersion <- metastore.currentVersion(table)
 
-      } yield (initialVersion, firstUpdatedVersion, secondUpdatedVersion, revertedVersion)
+      } yield (initialVersion, version1, firstUpdatedVersion, version2, secondUpdatedVersion, revertedVersion)
 
-      val (initialVersion, firstUpdatedVersion, secondUpdatedVersion, revertedVersion) = scenario.unsafeRunSync()
+      val (initialVersion, version1, firstUpdatedVersion, version2, secondUpdatedVersion, revertedVersion) =
+        scenario.unsafeRunSync()
 
-      initialVersion shouldBe SnapshotTableVersion(Version(0))
+      initialVersion shouldBe SnapshotTableVersion(Version.Unversioned)
       firstUpdatedVersion shouldBe
-        SnapshotTableVersion(Version(1))
+        SnapshotTableVersion(version1)
       secondUpdatedVersion shouldBe
-        SnapshotTableVersion(Version(42))
+        SnapshotTableVersion(version2)
       revertedVersion shouldEqual firstUpdatedVersion
     }
 
@@ -68,25 +71,28 @@ trait MetastoreSpec {
 
         initialVersion <- metastore.currentVersion(table)
 
+        version1 <- Version.generateVersion
+
         _ <- metastore.update(
           table,
           TableChanges(
             List(
-              AddPartition(Partition(dateCol, "2019-03-01"), Version(0)),
-              AddPartition(Partition(dateCol, "2019-03-02"), Version(1)),
-              AddPartition(Partition(dateCol, "2019-03-03"), Version(1))
+              AddPartition(Partition(dateCol, "2019-03-01"), Version.Unversioned),
+              AddPartition(Partition(dateCol, "2019-03-02"), version1),
+              AddPartition(Partition(dateCol, "2019-03-03"), version1)
             )
           )
         )
 
         versionAfterFirstUpdate <- metastore.currentVersion(table)
 
+        version2 <- Version.generateVersion
         _ <- metastore.update(
           table,
           TableChanges(
             List(
-              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), Version(1)),
-              UpdatePartitionVersion(Partition(dateCol, "2019-03-03"), Version(2))
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), version1),
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-03"), version2)
             )
           )
         )
@@ -104,9 +110,20 @@ trait MetastoreSpec {
 
         versionAfterPartitionRemoved <- metastore.currentVersion(table)
 
-      } yield (initialVersion, versionAfterFirstUpdate, versionAfterSecondUpdate, versionAfterPartitionRemoved)
+      } yield
+        (initialVersion,
+         version1,
+         versionAfterFirstUpdate,
+         version2,
+         versionAfterSecondUpdate,
+         versionAfterPartitionRemoved)
 
-      val (initialVersion, versionAfterFirstUpdate, versionAfterSecondUpdate, versionAfterPartitionRemoved) =
+      val (initialVersion,
+           version1,
+           versionAfterFirstUpdate,
+           version2,
+           versionAfterSecondUpdate,
+           versionAfterPartitionRemoved) =
         scenario.unsafeRunSync()
 
       initialVersion shouldBe PartitionedTableVersion(Map.empty)
@@ -114,24 +131,24 @@ trait MetastoreSpec {
       versionAfterFirstUpdate shouldBe
         PartitionedTableVersion(
           Map(
-            Partition(dateCol, "2019-03-01") -> Version(0),
-            Partition(dateCol, "2019-03-02") -> Version(1),
-            Partition(dateCol, "2019-03-03") -> Version(1)
+            Partition(dateCol, "2019-03-01") -> Version.Unversioned,
+            Partition(dateCol, "2019-03-02") -> version1,
+            Partition(dateCol, "2019-03-03") -> version1
           ))
 
       versionAfterSecondUpdate shouldBe
         PartitionedTableVersion(
           Map(
-            Partition(dateCol, "2019-03-01") -> Version(1),
-            Partition(dateCol, "2019-03-02") -> Version(1),
-            Partition(dateCol, "2019-03-03") -> Version(2)
+            Partition(dateCol, "2019-03-01") -> version1,
+            Partition(dateCol, "2019-03-02") -> version1,
+            Partition(dateCol, "2019-03-03") -> version2
           ))
 
       versionAfterPartitionRemoved shouldBe
         PartitionedTableVersion(
           Map(
-            Partition(dateCol, "2019-03-01") -> Version(1),
-            Partition(dateCol, "2019-03-03") -> Version(2)
+            Partition(dateCol, "2019-03-01") -> version1,
+            Partition(dateCol, "2019-03-03") -> version2
           ))
 
     }
@@ -153,11 +170,12 @@ trait MetastoreSpec {
       val scenario = for {
         metastore <- emptyMetastore
         _ <- initHiveTable
+        version <- Version.generateVersion
         _ <- metastore.update(
           table,
           TableChanges(
             List(
-              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), Version(1))
+              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), version)
             )
           )
         )

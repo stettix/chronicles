@@ -79,9 +79,12 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
       .where('date === "2019-03-15")
       .collect() should contain theSameElementsAs pageviewsDay3
 
-    versionDirs(tableUri, "date=2019-03-13") shouldBe List("v1")
-    versionDirs(tableUri, "date=2019-03-14") shouldBe List("v1")
-    versionDirs(tableUri, "date=2019-03-15") shouldBe List("v1")
+    val versionDirsFor13th = versionDirs(tableUri, "date=2019-03-13")
+    versionDirsFor13th should have size 1
+    val versionDirsFor14th = versionDirs(tableUri, "date=2019-03-14")
+    versionDirsFor14th should have size 1
+    val versionDirsFor15th = versionDirs(tableUri, "date=2019-03-15")
+    versionDirsFor15th should have size 1
 
     // Rewrite pageviews to remove one of the identity IDs, affecting only day 2
     // TODO: Change this to affect multiple partitions
@@ -92,9 +95,11 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     loader.pageviews().collect() should contain theSameElementsAs pageviewsDay1 ++ updatedPageviewsDay2 ++ pageviewsDay3
 
     // Check underlying storage that we have both versions for the updated partition
-    versionDirs(tableUri, "date=2019-03-13") shouldBe List("v1")
-    versionDirs(tableUri, "date=2019-03-14") shouldBe List("v1", "v2")
-    versionDirs(tableUri, "date=2019-03-15") shouldBe List("v1")
+    versionDirs(tableUri, "date=2019-03-13") should contain theSameElementsAs versionDirsFor13th
+    val updatedVersionDirsFor14th = versionDirs(tableUri, "date=2019-03-14")
+    updatedVersionDirsFor14th should have size 2
+    updatedVersionDirsFor14th should contain allElementsOf versionDirsFor14th
+    versionDirs(tableUri, "date=2019-03-15") should contain theSameElementsAs versionDirsFor15th
 
     // TODO: Query Metastore directly to check what partitions the table has?
     //   (When implementing rollback and creating views on historical versions we could just test that functionality
@@ -103,7 +108,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
     // Check that we still have the previous version of the updated partition
     spark.read
-      .parquet(tableUri.toString + "/date=2019-03-14/v1")
+      .parquet(tableUri.toString + s"/date=2019-03-14/${versionDirsFor14th.head}")
       .as[Pageview]
       .collect() should contain theSameElementsAs pageviewsDay2
   }
@@ -113,7 +118,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(s"$basePath/$partition")
     val dirList = Option(dir.toFile.list()).map(_.toList).getOrElse(Nil)
-    dirList.filter(_.matches("v\\d+"))
+    dirList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
   }
 
 }

@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.effect.IO
 import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
-import com.gu.tableversions.core.{TableDefinition, TableVersions}
+import com.gu.tableversions.core.{TableDefinition, TableVersions, Version}
 import com.gu.tableversions.examples.MultiPartitionTableLoader.AdImpression
 import com.gu.tableversions.metastore.Metastore
 import com.gu.tableversions.spark.VersionedDataset
@@ -19,6 +19,7 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 class MultiPartitionTableLoader(table: TableDefinition)(
     implicit tableVersions: TableVersions[IO],
     metastore: Metastore[IO],
+    generateVersion: IO[Version],
     spark: SparkSession)
     extends LazyLogging {
 
@@ -44,6 +45,7 @@ class MultiPartitionTableLoader(table: TableDefinition)(
 
   def insert(dataset: Dataset[AdImpression], userId: UserId, message: String): Unit = {
     import VersionedDataset._
+    import Version._
 
     val (latestVersion, metastoreChanges) = dataset.versionedInsertInto(table, userId, message)
 

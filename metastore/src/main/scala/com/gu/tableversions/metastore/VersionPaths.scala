@@ -10,25 +10,25 @@ import com.gu.tableversions.core.{Partition, Version}
 object VersionPaths {
 
   /**
-    * @return the fully resolved path for collection of versioned path
+    * @return the fully resolved paths for each partitions, derived from the table location and version
     */
   def resolveVersionedPartitionPaths(
-      partitionVersions: Map[Partition, Version],
+      partitions: List[Partition],
+      version: Version,
       tableLocation: URI): Map[Partition, URI] = {
 
-    partitionVersions.map {
-      case (partition, version) =>
-        val partitionBasePath = partition.resolvePath(tableLocation)
-        partition -> pathFor(partitionBasePath, version)
-    }
+    partitions.map { partition =>
+      val partitionBasePath = partition.resolvePath(tableLocation)
+      partition -> pathFor(partitionBasePath, version)
+    }.toMap
   }
 
   /**
     * @return a path for a given partition version and base path
     */
-  def pathFor(partitionPath: URI, newVersion: Version): URI = {
+  def pathFor(partitionPath: URI, version: Version): URI = {
     def normalised(path: String): String = if (path.endsWith("/")) path else path + "/"
-    def versioned(path: String): String = if (newVersion.number <= 0) path else s"${path}v${newVersion.number}"
+    def versioned(path: String): String = s"$path${version.label}"
     new URI(versioned(normalised(partitionPath.toString)))
   }
 

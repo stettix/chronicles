@@ -18,9 +18,6 @@ trait TableVersions[F[_]] {
   /** Get details about partition versions in a table. */
   def currentVersion(table: TableName): F[TableVersion]
 
-  /** Get a description of which version to write to next for the given partitions of a table. */
-  def nextVersions(table: TableName, partitions: List[Partition]): F[Map[Partition, Version]]
-
   /**
     * Update partition versions to the given versions.
     * This performs no checking if data has been written to the associated paths but it will verify that these versions

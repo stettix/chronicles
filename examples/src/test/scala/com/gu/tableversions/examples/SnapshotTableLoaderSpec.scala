@@ -39,7 +39,8 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     day1TableData should contain theSameElementsAs identitiesDay1
 
     // Check underlying storage that the expected versions were written in the right place
-    versionDirs(tableUri) shouldBe List("v1")
+    val initialTableVersionDirs = versionDirs(tableUri)
+    initialTableVersionDirs should have size 1
 
     // Write a slightly changed version of the table
     val identitiesDay2 = List(
@@ -54,10 +55,12 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     day2TableData should contain theSameElementsAs identitiesDay2
 
     // Check underlying storage that it was written in the right place
-    versionDirs(tableUri) shouldBe List("v1", "v2")
+    val updatedVersionDirs = versionDirs(tableUri)
+    updatedVersionDirs should have size 2
+    updatedVersionDirs should contain allElementsOf initialTableVersionDirs
 
     // Check that the previous version's data is still there and valid (not testing rollback APIs yet)
-    val oldVersion = spark.read.parquet(tableUri + "/v1").as[User].collect()
+    val oldVersion = spark.read.parquet(tableUri + s"/${initialTableVersionDirs.head}").as[User].collect()
     oldVersion should contain theSameElementsAs day1TableData
   }
 
@@ -65,7 +68,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     assert(tableLocation.toString.startsWith("file://"))
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(basePath)
-    dir.toFile.list().toList.filter(_.matches("v\\d+"))
+    dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
   }
 
 }

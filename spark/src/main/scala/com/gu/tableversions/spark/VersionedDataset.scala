@@ -4,14 +4,12 @@ import java.net.URI
 import java.time.Instant
 
 import cats.effect.IO
-import com.gu.tableversions.core.TableVersions.{TableUpdate, UpdateMessage, UserId}
 import com.gu.tableversions.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion}
+import com.gu.tableversions.core.TableVersions.{TableUpdate, UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
 import org.apache.spark.sql.{Dataset, Row, SparkSession}
-
-import scala.collection.immutable
 
 /**
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
@@ -21,7 +19,8 @@ object VersionedDataset {
 
   implicit class DatasetOps[T](val delegate: Dataset[T])(
       implicit tableVersions: TableVersions[IO],
-      metastore: Metastore[IO]) {
+      metastore: Metastore[IO],
+      generateVersion: IO[Version]) {
 
     /**
       * Insert the dataset into the given versioned table.
@@ -45,24 +44,27 @@ object VersionedDataset {
       userId: UserId,
       message: String)(
       implicit tableVersions: TableVersions[IO],
-      metastore: Metastore[IO]): IO[(TableVersion, TableChanges)] =
+      metastore: Metastore[IO],
+      generateVersion: IO[Version]): IO[(TableVersion, TableChanges)] =
     for {
       // Find the partition values in the given dataset
       datasetPartitions <- IO(VersionedDataset.partitionValues(dataset, table.partitionSchema)(dataset.sparkSession))
 
-      // Get next version numbers for the partitions of the dataset
-      workingVersions <- tableVersions.nextVersions(table.name, datasetPartitions)
+      // Get next version to use for all partitions
+      newVersion <- generateVersion
 
       // Resolve the path that each partition should be written to, based on their version
-      partitionPaths = VersionPaths.resolveVersionedPartitionPaths(workingVersions, table.location)
+      partitionPaths = VersionPaths.resolveVersionedPartitionPaths(datasetPartitions, newVersion, table.location)
 
       // Write Spark dataset to the versioned path
       _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
 
       // Commit written version
-      _ <- tableVersions.commit(
-        table.name,
-        TableUpdate(userId, UpdateMessage(message), Instant.now(), operationsForPartitions(workingVersions)))
+      _ <- tableVersions.commit(table.name,
+                                TableUpdate(userId,
+                                            UpdateMessage(message),
+                                            Instant.now(),
+                                            operationsForPartitions(datasetPartitions, newVersion)))
 
       // Get latest version details and Metastore table details and sync the Metastore to match,
       // effectively switching the table to the new version.
@@ -76,10 +78,12 @@ object VersionedDataset {
 
     } yield (latestTableVersion, metastoreUpdate)
 
-  private def operationsForPartitions(workingVersions: Map[Partition, Version]): List[TableVersions.TableOperation] = {
-    if (workingVersions.keys.toList == List(Partition.snapshotPartition))
-      List(AddTableVersion(workingVersions(Partition.snapshotPartition)))
-    else workingVersions.map(AddPartitionVersion.tupled).toList
+  private def operationsForPartitions(
+      partitions: List[Partition],
+      version: Version): List[TableVersions.TableOperation] = {
+    if (partitions == List(Partition.snapshotPartition))
+      List(AddTableVersion(version))
+    else partitions.map(partition => AddPartitionVersion(partition, version))
   }
 
   /**

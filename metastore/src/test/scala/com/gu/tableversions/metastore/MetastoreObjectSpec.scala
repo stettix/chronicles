@@ -13,23 +13,23 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
     val oldVersion = PartitionedTableVersion(Map.empty)
 
     val newPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version(3),
-      Partition(date, "2019-03-03") -> Version(1)
+      Partition(date, "2019-03-01") -> Version("3"),
+      Partition(date, "2019-03-03") -> Version("1")
     )
     val newVersion = PartitionedTableVersion(newPartitionVersions)
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
     changes.operations should contain theSameElementsAs List(
-      AddPartition(Partition(date, "2019-03-01"), Version(3)),
-      AddPartition(Partition(date, "2019-03-03"), Version(1))
+      AddPartition(Partition(date, "2019-03-01"), Version("3")),
+      AddPartition(Partition(date, "2019-03-03"), Version("1"))
     )
   }
 
   it should "produce operations to remove deleted partitions" in {
     val oldPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version(3),
-      Partition(date, "2019-03-03") -> Version(1)
+      Partition(date, "2019-03-01") -> Version("3"),
+      Partition(date, "2019-03-03") -> Version("1")
     )
     val oldVersion = PartitionedTableVersion(oldPartitionVersions)
 
@@ -44,29 +44,29 @@ class MetastoreObjectSpec extends FlatSpec with Matchers {
   }
 
   it should "produce operations to update the versions of existing partitions" in {
-    val oldPartitionVersions = Map(Partition(date, "2019-03-01") -> Version(1))
+    val oldPartitionVersions = Map(Partition(date, "2019-03-01") -> Version("1"))
     val oldVersion = PartitionedTableVersion(oldPartitionVersions)
 
-    val newPartitionVersions = Map(Partition(date, "2019-03-01") -> Version(2))
+    val newPartitionVersions = Map(Partition(date, "2019-03-01") -> Version("2"))
     val newVersion = PartitionedTableVersion(newPartitionVersions)
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
     changes.operations should contain theSameElementsAs List(
-      UpdatePartitionVersion(Partition(date, "2019-03-01"), Version(2)))
+      UpdatePartitionVersion(Partition(date, "2019-03-01"), Version("2")))
   }
 
   it should "produce an operation to update the version of a table for an updated snapshot table version" in {
-    val oldVersion = SnapshotTableVersion(Version(1))
-    val newVersion = SnapshotTableVersion(Version(2))
+    val oldVersion = SnapshotTableVersion(Version("1"))
+    val newVersion = SnapshotTableVersion(Version("2"))
 
     val changes = Metastore.computeChanges(oldVersion, newVersion)
 
-    changes.operations should contain theSameElementsAs List(UpdateTableVersion(Version(2)))
+    changes.operations should contain theSameElementsAs List(UpdateTableVersion(Version("2")))
   }
 
   it should "produce no change for a snapshot table with the same version" in {
-    val version = SnapshotTableVersion(Version(1))
+    val version = SnapshotTableVersion(Version("1"))
 
     val changes = Metastore.computeChanges(version, version)
 

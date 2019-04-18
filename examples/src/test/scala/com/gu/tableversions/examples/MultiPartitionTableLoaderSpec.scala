@@ -39,10 +39,9 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     loader.insert(impressionsDay1.toDS(), userId1, "Day 1 initial commit")
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1
 
-    partitionVersions(tableDir) shouldBe Map(
-      ("impression_date=2019-03-13", "processed_date=2019-03-14") -> List("v1"),
-      ("impression_date=2019-03-14", "processed_date=2019-03-14") -> List("v1")
-    )
+    val initialPartitionVersions = partitionVersions(tableDir)
+    initialPartitionVersions("impression_date=2019-03-13" -> "processed_date=2019-03-14") should have size 1
+    initialPartitionVersions("impression_date=2019-03-14" -> "processed_date=2019-03-14") should have size 1
 
     val impressionsDay2 = List(
       AdImpression("user-1", "ad-1", Timestamp.valueOf("2019-03-14 23:59:00"), Date.valueOf("2019-03-15")),
@@ -53,12 +52,13 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     loader.insert(impressionsDay2.toDS(), userId2, "Day 2 initial commit")
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
-    partitionVersions(tableDir) shouldBe Map(
-      ("impression_date=2019-03-13", "processed_date=2019-03-14") -> List("v1"),
-      ("impression_date=2019-03-14", "processed_date=2019-03-14") -> List("v1"),
-      ("impression_date=2019-03-14", "processed_date=2019-03-15") -> List("v1"),
-      ("impression_date=2019-03-15", "processed_date=2019-03-15") -> List("v1")
-    )
+    val partitionVersionsDay2 = partitionVersions(tableDir)
+    partitionVersionsDay2(("impression_date=2019-03-13", "processed_date=2019-03-14")) shouldBe initialPartitionVersions(
+      "impression_date=2019-03-13" -> "processed_date=2019-03-14")
+    partitionVersionsDay2(("impression_date=2019-03-14", "processed_date=2019-03-14")) shouldBe initialPartitionVersions(
+      "impression_date=2019-03-14" -> "processed_date=2019-03-14")
+    partitionVersionsDay2("impression_date=2019-03-14" -> "processed_date=2019-03-15") should have size 1
+    partitionVersionsDay2("impression_date=2019-03-15" -> "processed_date=2019-03-15") should have size 1
 
     // Rewrite impressions to change the content for one of the event dates
     val impressionsDay2Updated = impressionsDay2 ++ List(
@@ -66,38 +66,21 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     )
     loader.insert(impressionsDay2Updated.toDS(), userId1, "Day 2 update")
 
-    // Metastore should point to new partition versions.
-    // Note that the unchanged partition that was rewritten has a new version as well, there is no diffing of data
-    // to try to avoid this.
-    val tableVersionAfterUpdate = metastore.currentVersion(table.name).unsafeRunSync()
-    tableVersionAfterUpdate shouldBe
-      PartitionedTableVersion(
-        Map(
-          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-13"),
-                         ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))) ->
-            Version(1),
-          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
-                         ColumnValue(PartitionColumn("processed_date"), "2019-03-14"))) ->
-            Version(1),
-          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-14"),
-                         ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))) ->
-            Version(2),
-          Partition(List(ColumnValue(PartitionColumn("impression_date"), "2019-03-15"),
-                         ColumnValue(PartitionColumn("processed_date"), "2019-03-15"))) ->
-            Version(2)
-        ))
-
     // Query to check we see the updated version
     loader.adImpressions().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
 
     // Check on-disk storage
-    partitionVersions(tableDir) shouldBe Map(
-      ("impression_date=2019-03-13", "processed_date=2019-03-14") -> List("v1"),
-      ("impression_date=2019-03-14", "processed_date=2019-03-14") -> List("v1"),
-      ("impression_date=2019-03-14", "processed_date=2019-03-15") -> List("v1", "v2"),
-      ("impression_date=2019-03-15", "processed_date=2019-03-15") -> List("v1", "v2")
-    )
-
+    val updatedPartitionVersionsDay = partitionVersions(tableDir)
+    updatedPartitionVersionsDay(("impression_date=2019-03-13", "processed_date=2019-03-14")) shouldBe initialPartitionVersions(
+      "impression_date=2019-03-13" -> "processed_date=2019-03-14")
+    updatedPartitionVersionsDay(("impression_date=2019-03-14", "processed_date=2019-03-14")) shouldBe initialPartitionVersions(
+      "impression_date=2019-03-14" -> "processed_date=2019-03-14")
+    updatedPartitionVersionsDay("impression_date=2019-03-14" -> "processed_date=2019-03-15") should have size 2
+    updatedPartitionVersionsDay("impression_date=2019-03-14" -> "processed_date=2019-03-15") should contain allElementsOf partitionVersionsDay2(
+      "impression_date=2019-03-14" -> "processed_date=2019-03-15")
+    updatedPartitionVersionsDay("impression_date=2019-03-15" -> "processed_date=2019-03-15") should have size 2
+    updatedPartitionVersionsDay("impression_date=2019-03-14" -> "processed_date=2019-03-15") should contain allElementsOf partitionVersionsDay2(
+      "impression_date=2019-03-14" -> "processed_date=2019-03-15")
   }
 
   def partitionVersions(tableLocation: Path): Map[(String, String), List[String]] = {
@@ -108,7 +91,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     }
 
     def versions(dir: Path): List[String] =
-      dir.toFile.list().toList.filter(_.matches("v\\d+"))
+      dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
 
     val impressionDatePartitions: List[String] = datePartitions("impression_date", tableLocation)
 

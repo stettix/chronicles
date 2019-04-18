@@ -47,13 +47,13 @@ trait TableVersionsSpec {
     it should "allow partition versions of a partitioned table to be updated and queried" in {
 
       val initialPartitionVersions = Map(
-        Partition(date, "2019-03-01") -> Version(1),
-        Partition(date, "2019-03-02") -> Version(1)
+        Partition(date, "2019-03-01") -> Version("1"),
+        Partition(date, "2019-03-02") -> Version("1")
       )
 
       val partitionUpdate1 = Map(
-        Partition(date, "2019-03-02") -> Version(2),
-        Partition(date, "2019-03-03") -> Version(1)
+        Partition(date, "2019-03-02") -> Version("2"),
+        Partition(date, "2019-03-03") -> Version("1")
       )
 
       val scenario = for {
@@ -74,7 +74,6 @@ trait TableVersionsSpec {
         version1 <- tableVersions.currentVersion(table)
 
         // Do an update with one updated partition and one new one
-        nextVersions1 <- tableVersions.nextVersions(table, partitionUpdate1.keys.toList)
         commitResult2 <- tableVersions.commit(table,
                                               TableUpdate(userId,
                                                           UpdateMessage("First update"),
@@ -82,29 +81,28 @@ trait TableVersionsSpec {
                                                           partitionUpdate1.map(AddPartitionVersion.tupled).toList))
         version2 <- tableVersions.currentVersion(table)
 
-      } yield (initialTableVersion, commitResult1, version1, nextVersions1, commitResult2, version2)
+      } yield (initialTableVersion, commitResult1, version1, commitResult2, version2)
 
-      val (initialTableVersion, commitResult1, version1, nextVersions1, commitResult2, version2) =
+      val (initialTableVersion, commitResult1, version1, commitResult2, version2) =
         scenario.unsafeRunSync()
 
       initialTableVersion shouldBe PartitionedTableVersion(Map.empty)
       commitResult1 shouldBe SuccessfulCommit
       version1 shouldBe PartitionedTableVersion(initialPartitionVersions)
 
-      nextVersions1 shouldBe partitionUpdate1
       commitResult2 shouldBe SuccessfulCommit
       version2 shouldEqual PartitionedTableVersion(
         Map(
-          Partition(date, "2019-03-01") -> Version(1),
-          Partition(date, "2019-03-02") -> Version(2),
-          Partition(date, "2019-03-03") -> Version(1)
+          Partition(date, "2019-03-01") -> Version("1"),
+          Partition(date, "2019-03-02") -> Version("2"),
+          Partition(date, "2019-03-03") -> Version("1")
         ))
     }
 
     it should "allow partitions to be removed from a partitioned table" in {
       val initialPartitionVersions = Map(
-        Partition(date, "2019-03-01") -> Version(1),
-        Partition(date, "2019-03-02") -> Version(1)
+        Partition(date, "2019-03-01") -> Version("1"),
+        Partition(date, "2019-03-02") -> Version("1")
       )
 
       val scenario = for {
@@ -130,7 +128,6 @@ trait TableVersionsSpec {
         )
 
         versionAfterRemove <- tableVersions.currentVersion(table)
-        nextVersionsAfterRemove <- tableVersions.nextVersions(table, List(Partition(date, "2019-03-01")))
 
         // Re-add the removed partition
         _ <- tableVersions.commit(
@@ -138,76 +135,56 @@ trait TableVersionsSpec {
           TableUpdate(userId,
                       UpdateMessage("First update"),
                       timestamp(3),
-                      List(AddPartitionVersion(Partition(date, "2019-03-01"), Version(2))))
+                      List(AddPartitionVersion(Partition(date, "2019-03-01"), Version("2"))))
         )
 
         versionAfterReAdd <- tableVersions.currentVersion(table)
 
-      } yield (versionAfterRemove, nextVersionsAfterRemove, versionAfterReAdd)
+      } yield (versionAfterRemove, versionAfterReAdd)
 
-      val (versionAfterRemove, nextVersionsAfterRemove, versionAfterReAdd) =
+      val (versionAfterRemove, versionAfterReAdd) =
         scenario.unsafeRunSync()
 
-      versionAfterRemove shouldBe PartitionedTableVersion(Map(Partition(date, "2019-03-02") -> Version(1)))
+      versionAfterRemove shouldBe PartitionedTableVersion(Map(Partition(date, "2019-03-02") -> Version("1")))
 
       // Note: after re-adding a removed partition, the new version needs to be distinct from the old, removed one.
-      nextVersionsAfterRemove shouldBe Map(
-        Partition(date, "2019-03-01") -> Version(2)
-      )
 
       versionAfterReAdd shouldEqual PartitionedTableVersion(
         Map(
-          Partition(date, "2019-03-01") -> Version(2),
-          Partition(date, "2019-03-02") -> Version(1)
+          Partition(date, "2019-03-01") -> Version("2"),
+          Partition(date, "2019-03-02") -> Version("1")
         ))
     }
 
     it should "allow versions of a snapshot table to be updated and queried" in {
 
-      val version1 = SnapshotTableVersion(Version(1))
-      val version2 = SnapshotTableVersion(Version(2))
+      val version1 = SnapshotTableVersion(Version("1"))
+      val version2 = SnapshotTableVersion(Version("2"))
 
       val scenario = for {
         tableVersions <- emptyTableVersions
         _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
         initialTableVersion <- tableVersions.currentVersion(table)
-        nextVersion1 <- tableVersions.nextVersions(table, List(Partition.snapshotPartition))
         commitResult1 <- tableVersions.commit(
           table,
           TableUpdate(userId, UpdateMessage("First commit"), timestamp(1), List(AddTableVersion(version1.version))))
         currentVersion1 <- tableVersions.currentVersion(table)
 
-        nextVersion2 <- tableVersions.nextVersions(table, List(Partition.snapshotPartition))
         commitResult2 <- tableVersions.commit(
           table,
           TableUpdate(userId, UpdateMessage("Second commit"), timestamp(2), List(AddTableVersion(version2.version))))
         currentVersion2 <- tableVersions.currentVersion(table)
 
-      } yield
-        (initialTableVersion,
-         nextVersion1,
-         commitResult1,
-         currentVersion1,
-         nextVersion2,
-         commitResult2,
-         currentVersion2)
+      } yield (initialTableVersion, commitResult1, currentVersion1, commitResult2, currentVersion2)
 
-      val (initialTableVersion,
-           nextVersion1,
-           commitResult1,
-           currentVersion1,
-           nextVersion2,
-           commitResult2,
-           currentVersion2) =
+      val (initialTableVersion, commitResult1, currentVersion1, commitResult2, currentVersion2) =
         scenario.unsafeRunSync()
 
-      initialTableVersion shouldBe SnapshotTableVersion(Version(0))
-      nextVersion1 shouldBe Map(Partition.snapshotPartition -> version1.version)
+      initialTableVersion shouldBe SnapshotTableVersion(Version.Unversioned)
 
       commitResult1 shouldBe SuccessfulCommit
       currentVersion1 shouldBe version1
 
-      nextVersion2 shouldBe Map(Partition.snapshotPartition -> version2.version)
       commitResult2 shouldBe SuccessfulCommit
       currentVersion2 shouldBe currentVersion2
     }
@@ -216,16 +193,6 @@ trait TableVersionsSpec {
       val scenario = for {
         tableVersions <- emptyTableVersions
         version <- tableVersions.currentVersion(table)
-      } yield version
-
-      val ex = the[Exception] thrownBy scenario.unsafeRunSync()
-      ex.getMessage should include regex "schema.*table.*not found"
-    }
-
-    it should "return an error if trying to get next versions from an unknown table" in {
-      val scenario = for {
-        tableVersions <- emptyTableVersions
-        version <- tableVersions.nextVersions(TableName("schema", "table"), List(Partition.snapshotPartition))
       } yield version
 
       val ex = the[Exception] thrownBy scenario.unsafeRunSync()
@@ -241,7 +208,7 @@ trait TableVersionsSpec {
           TableUpdate(userId,
                       UpdateMessage("Commit initial partitions"),
                       timestamp(1),
-                      List(AddPartitionVersion(Partition.snapshotPartition, Version(1))))
+                      List(AddPartitionVersion(Partition.snapshotPartition, Version("1"))))
         )
       } yield version
 

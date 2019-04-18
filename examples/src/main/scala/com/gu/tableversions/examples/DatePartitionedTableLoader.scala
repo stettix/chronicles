@@ -19,6 +19,7 @@ import org.apache.spark.sql.{Dataset, SparkSession}
 class DatePartitionedTableLoader(table: TableDefinition)(
     implicit tableVersions: TableVersions[IO],
     metastore: Metastore[IO],
+    generateVersion: IO[Version],
     spark: SparkSession)
     extends LazyLogging {
 
