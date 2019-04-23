@@ -208,7 +208,7 @@ trait TableVersionsSpec {
           TableUpdate(userId,
                       UpdateMessage("Commit initial partitions"),
                       timestamp(1),
-                      List(AddPartitionVersion(Partition.snapshotPartition, Version("1"))))
+                      List(AddTableVersion(Version("1"))))
         )
       } yield version
 

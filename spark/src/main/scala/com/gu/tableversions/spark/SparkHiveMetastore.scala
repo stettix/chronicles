@@ -167,6 +167,7 @@ object SparkHiveMetastore {
   private[spark] def toHivePartitionExpr(partition: Partition): String =
     partition.columnValues
       .map(columnValue => s"${columnValue.column.name}='${columnValue.value}'")
+      .toList
       .mkString("(", ",", ")")
 
   private val ColumnValueRegex = """(?x)
@@ -182,7 +183,10 @@ object SparkHiveMetastore {
     }
     val parts = partitionStr.split("/").toList
     val columnValues = parts.map(parseColumnValue)
-    Partition(columnValues)
+    columnValues match {
+      case head :: tail => Partition(head, tail: _*)
+      case _            => throw new Exception(s"Empty partition string found: $partitionStr")
+    }
   }
 
   private[spark] def parseVersion(location: URI): Version = {

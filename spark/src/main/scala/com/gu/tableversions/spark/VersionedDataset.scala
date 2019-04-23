@@ -5,11 +5,12 @@ import java.time.Instant
 
 import cats.effect.IO
 import com.gu.tableversions.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion}
-import com.gu.tableversions.core.TableVersions.{TableUpdate, UpdateMessage, UserId}
+import com.gu.tableversions.core.TableVersions.{TableOperation, TableUpdate, UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
 import org.apache.spark.sql.{Dataset, Row, SparkSession}
+import cats.implicits._
 
 /**
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
@@ -45,26 +46,34 @@ object VersionedDataset {
       message: String)(
       implicit tableVersions: TableVersions[IO],
       metastore: Metastore[IO],
-      generateVersion: IO[Version]): IO[(TableVersion, TableChanges)] =
-    for {
-      // Find the partition values in the given dataset
-      datasetPartitions <- IO(VersionedDataset.partitionValues(dataset, table.partitionSchema)(dataset.sparkSession))
+      generateVersion: IO[Version]): IO[(TableVersion, TableChanges)] = {
 
+    def writePartitionedDataset(version: Version): IO[List[TableOperation]] =
+      for {
+        // Find the partition values in the given dataset
+        datasetPartitions <- IO(VersionedDataset.partitionValues(dataset, table.partitionSchema)(dataset.sparkSession))
+
+        // Resolve the path that each partition should be written to, based on their version
+        partitionPaths = VersionPaths.resolveVersionedPartitionPaths(datasetPartitions, version, table.location)
+
+        // Write Spark dataset to the versioned path
+        _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
+
+      } yield datasetPartitions.map(partition => AddPartitionVersion(partition, version))
+
+    def writeSnapshotDataset(version: Version): IO[List[TableOperation]] = {
+      val path = VersionPaths.pathFor(table.location, version)
+      IO(dataset.write.parquet(path.toString)).as(List(AddTableVersion(version)))
+    }
+
+    for {
       // Get next version to use for all partitions
       newVersion <- generateVersion
 
-      // Resolve the path that each partition should be written to, based on their version
-      partitionPaths = VersionPaths.resolveVersionedPartitionPaths(datasetPartitions, newVersion, table.location)
-
-      // Write Spark dataset to the versioned path
-      _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
+      operations <- if (table.isSnapshot) writeSnapshotDataset(newVersion) else writePartitionedDataset(newVersion)
 
       // Commit written version
-      _ <- tableVersions.commit(table.name,
-                                TableUpdate(userId,
-                                            UpdateMessage(message),
-                                            Instant.now(),
-                                            operationsForPartitions(datasetPartitions, newVersion)))
+      _ <- tableVersions.commit(table.name, TableUpdate(userId, UpdateMessage(message), Instant.now(), operations))
 
       // Get latest version details and Metastore table details and sync the Metastore to match,
       // effectively switching the table to the new version.
@@ -77,13 +86,6 @@ object VersionedDataset {
       _ <- metastore.update(table.name, metastoreUpdate)
 
     } yield (latestTableVersion, metastoreUpdate)
-
-  private def operationsForPartitions(
-      partitions: List[Partition],
-      version: Version): List[TableVersions.TableOperation] = {
-    if (partitions == List(Partition.snapshotPartition))
-      List(AddTableVersion(version))
-    else partitions.map(partition => AddPartitionVersion(partition, version))
   }
 
   /**
@@ -91,28 +93,25 @@ object VersionedDataset {
     */
   private[spark] def partitionValues[T](dataset: Dataset[T], partitionSchema: PartitionSchema)(
       implicit spark: SparkSession): List[Partition] = {
-    if (partitionSchema == PartitionSchema.snapshot) {
-      List(Partition.snapshotPartition)
-    } else {
-      // Query dataset for partitions
-      // NOTE: this implementation has not been optimised yet
-      val partitionColumnsList = partitionSchema.columns.map(_.name)
-      val partitionsDf = dataset.selectExpr(partitionColumnsList: _*).distinct()
-      val partitionRows = partitionsDf.collect().toList
+    // Query dataset for partitions
+    // NOTE: this implementation has not been optimised yet
+    val partitionColumnsList = partitionSchema.columns.map(_.name)
+    val partitionsDf = dataset.selectExpr(partitionColumnsList: _*).distinct()
+    val partitionRows = partitionsDf.collect().toList
 
-      def rowToPartition(row: Row): Partition = {
-        val partitionColumnValues: List[(Partition.PartitionColumn, String)] =
-          partitionSchema.columns zip row.toSeq.map(_.toString)
+    def rowToPartition(row: Row): Partition = {
+      val partitionColumnValues: List[(Partition.PartitionColumn, String)] =
+        partitionSchema.columns zip row.toSeq.map(_.toString)
 
-        val columnValues: List[Partition.ColumnValue] = partitionColumnValues.map {
-          case (partitionColumn, value) => Partition.ColumnValue(partitionColumn, value)
-        }
+      val columnValues = partitionColumnValues.map(Partition.ColumnValue.tupled)
 
-        Partition(columnValues)
+      columnValues match {
+        case head :: tail => Partition(head, tail: _*)
+        case _            => throw new Exception("Empty list of partitions not valid for partitioned table")
       }
-
-      partitionRows.map(rowToPartition)
     }
+
+    partitionRows.map(rowToPartition)
   }
 
   /**
@@ -129,10 +128,7 @@ object VersionedDataset {
       }
 
     val datasetsWithPaths: Map[Dataset[T], URI] =
-      if (partitionPaths.keySet == Set(Partition.snapshotPartition))
-        Map(dataset -> partitionPaths.values.head)
-      else
-        partitionPaths.map { case (partition, path) => filteredForPartition(partition) -> path }
+      partitionPaths.map { case (partition, path) => filteredForPartition(partition) -> path }
 
     datasetsWithPaths.foreach {
       case (datasetForPartition, partitionPath) =>

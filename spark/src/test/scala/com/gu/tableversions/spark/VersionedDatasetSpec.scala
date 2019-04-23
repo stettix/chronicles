@@ -11,32 +11,19 @@ import com.gu.tableversions.core.TableVersions.{CommitResult, UpdateMessage, Use
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore
 import com.gu.tableversions.metastore.Metastore.TableChanges
-import com.gu.tableversions.metastore.Metastore.TableOperation.AddPartition
+import com.gu.tableversions.metastore.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
+import com.gu.tableversions.spark.VersionedDataset._
 import com.gu.tableversions.spark.VersionedDatasetSpec.{Event, User}
 import org.apache.spark.sql.Dataset
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.reflect.runtime.universe.TypeTag
 
-import VersionedDataset._
-
 class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   import spark.implicits._
 
   implicit val generateVersion: IO[Version] = IO.pure(Version("v1"))
-
-  "Finding the partitions of a dataset" should "return the empty partition for an un-partitioned dataset" in {
-
-    val snapshotDataset: Dataset[User] = List(
-      User("101", "Alice"),
-      User("102", "Bob")
-    ).toDS()
-
-    val schema = PartitionSchema.snapshot
-
-    VersionedDataset.partitionValues(snapshotDataset, schema) shouldBe List(Partition.snapshotPartition)
-  }
 
   it should "return all partitions for a dataset with a single partition column" in {
 
@@ -95,26 +82,13 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     )
   }
 
-  "Writing a snapshot dataset" should "store the data in a versioned folder for the whole table" in {
-    val users = List(
-      User("101", "Alice"),
-      User("102", "Bob")
-    )
-    val partitionPaths = Map(Partition.snapshotPartition -> tableUri.resolve("v1"))
-
-    VersionedDataset.writeVersionedPartitions(users.toDS(), partitionPaths)
-
-    readDataset[User](tableUri.resolve("v1")).collect() should contain theSameElementsAs users
-  }
-
   "Inserting a snapshot dataset" should "write the data to the versioned location and commit the new version" in {
     val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
 
     // Stub metastore
     val initialTableVersion = SnapshotTableVersion(Version.Unversioned)
-    val nextPartitionVersions = Map(Partition.snapshotPartition -> Version("1"))
 
-    val stubbedChanges = TableChanges(nextPartitionVersions.map(AddPartition.tupled).toList)
+    val stubbedChanges = TableChanges(List(UpdateTableVersion(Version(""))))
     implicit val stubMetastore: Metastore[IO] = new StubMetastore(
       currentVersion = initialTableVersion,
       computedChanges = stubbedChanges
