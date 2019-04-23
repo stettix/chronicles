@@ -35,7 +35,7 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   // Tests specific to the Spark/Hive implementation
   //
 
-  val validVersionLabel = "20181102-235900-4920d06f-2233-4b4a-9521-8e730eee89c5"
+  val validVersion = Version.generateVersion.unsafeRunSync()
 
   "Parsing a valid partition string" should "produce the expected values" in {
     val testData = Table(
@@ -87,11 +87,10 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   }
 
   "Parsing the version from versioned paths" should "produce the version number" in {
-    parseVersion(new URI(s"file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/2019/$validVersionLabel")) shouldBe Version(
-      validVersionLabel)
-    parseVersion(new URI(s"s3://bucket/pageview/date=2019-01-21/$validVersionLabel")) shouldBe Version(
-      validVersionLabel)
-    parseVersion(new URI(s"s3://bucket/identity/$validVersionLabel")) shouldBe Version(validVersionLabel)
+    parseVersion(new URI(s"file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/2019/${validVersion.label}")) shouldBe validVersion
+
+    parseVersion(new URI(s"s3://bucket/pageview/date=2019-01-21/${validVersion.label}")) shouldBe validVersion
+    parseVersion(new URI(s"s3://bucket/identity/${validVersion.label}")) shouldBe validVersion
   }
 
   "Parsing the version from unversioned paths" should "produce version 0" in {
@@ -116,7 +115,7 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   }
 
   it should "return strip off the version part of the path" in {
-    versionedToBasePath(new URI(s"hdfs://bucket/identity/$validVersionLabel")) shouldBe new URI(
+    versionedToBasePath(new URI(s"hdfs://bucket/identity/${validVersion.label}")) shouldBe new URI(
       "hdfs://bucket/identity")
   }
 

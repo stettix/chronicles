@@ -26,10 +26,13 @@ object VersionPaths {
   /**
     * @return a path for a given partition version and base path
     */
-  def pathFor(partitionPath: URI, version: Version): URI = {
-    def normalised(path: String): String = if (path.endsWith("/")) path else path + "/"
-    def versioned(path: String): String = s"$path${version.label}"
-    new URI(versioned(normalised(partitionPath.toString)))
-  }
+  def pathFor(partitionPath: URI, version: Version): URI =
+    if (version == Version.Unversioned)
+      partitionPath
+    else {
+      def normalised(path: String): String = if (path.endsWith("/")) path else path + "/"
+      def versioned(path: String): String = s"$path${version.label}"
+      new URI(versioned(normalised(partitionPath.toString)))
+    }
 
 }

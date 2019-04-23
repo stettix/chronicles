@@ -10,6 +10,8 @@ class InMemoryTableVersionsSpec extends FlatSpec with Matchers with TableVersion
   val date = PartitionColumn("date")
   val emptyPartitionedTable = PartitionedTableVersion(Map.empty)
 
+  val version3 = Version.generateVersion.unsafeRunSync()
+
   "The reference implementation for the TableVersions service" should behave like tableVersionsBehaviour {
     InMemoryTableVersions[IO]
   }
@@ -20,8 +22,8 @@ class InMemoryTableVersionsSpec extends FlatSpec with Matchers with TableVersion
 
   it should "produce the same table when an empty update is applied" in {
     val partitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-02") -> Version("1")
+      Partition(date, "2019-03-01") -> version1,
+      Partition(date, "2019-03-02") -> version2
     )
     val tableVersion = PartitionedTableVersion(partitionVersions)
     InMemoryTableVersions.applyPartitionUpdates(tableVersion)(Nil) shouldBe tableVersion
@@ -29,8 +31,8 @@ class InMemoryTableVersionsSpec extends FlatSpec with Matchers with TableVersion
 
   it should "produce a version with the given partitions when no previous partition versions exist" in {
     val partitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-02") -> Version("1")
+      Partition(date, "2019-03-01") -> version2,
+      Partition(date, "2019-03-02") -> version1
     )
     val partitionUpdates = partitionVersions.map(AddPartitionVersion.tupled).toList
     InMemoryTableVersions.applyPartitionUpdates(emptyPartitionedTable)(partitionUpdates) shouldBe PartitionedTableVersion(
@@ -40,18 +42,18 @@ class InMemoryTableVersionsSpec extends FlatSpec with Matchers with TableVersion
   it should "pick the latest version when an existing partition version is updated" in {
 
     val initialPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-02") -> Version("2"),
-      Partition(date, "2019-03-03") -> Version("1")
+      Partition(date, "2019-03-01") -> version1,
+      Partition(date, "2019-03-02") -> version2,
+      Partition(date, "2019-03-03") -> version1
     )
     val initialTableVersion = PartitionedTableVersion(initialPartitionVersions)
 
-    val partitionUpdates = List(AddPartitionVersion(Partition(date, "2019-03-02"), Version("3")))
+    val partitionUpdates = List(AddPartitionVersion(Partition(date, "2019-03-02"), version3))
 
     val expectedPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-02") -> Version("3"),
-      Partition(date, "2019-03-03") -> Version("1")
+      Partition(date, "2019-03-01") -> version1,
+      Partition(date, "2019-03-02") -> version3,
+      Partition(date, "2019-03-03") -> version1
     )
 
     InMemoryTableVersions.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(
@@ -60,17 +62,17 @@ class InMemoryTableVersionsSpec extends FlatSpec with Matchers with TableVersion
 
   it should "remove an existing partition" in {
     val initialPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-02") -> Version("2"),
-      Partition(date, "2019-03-03") -> Version("1")
+      Partition(date, "2019-03-01") -> version3,
+      Partition(date, "2019-03-02") -> version2,
+      Partition(date, "2019-03-03") -> version1
     )
     val initialTableVersion = PartitionedTableVersion(initialPartitionVersions)
 
     val partitionUpdates = List(RemovePartition(Partition(date, "2019-03-02")))
 
     val expectedPartitionVersions = Map(
-      Partition(date, "2019-03-01") -> Version("3"),
-      Partition(date, "2019-03-03") -> Version("1")
+      Partition(date, "2019-03-01") -> version3,
+      Partition(date, "2019-03-03") -> version1
     )
 
     InMemoryTableVersions.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(

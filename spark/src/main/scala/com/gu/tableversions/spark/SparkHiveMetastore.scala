@@ -2,6 +2,8 @@ package com.gu.tableversions.spark
 
 import java.io.File
 import java.net.URI
+import java.time.LocalDateTime
+import java.util.UUID
 
 import cats.effect.Sync
 import cats.implicits._
@@ -190,11 +192,13 @@ object SparkHiveMetastore {
   }
 
   private[spark] def parseVersion(location: URI): Version = {
-    val maybeVersionStr = location.toString.split("/").lastOption
-    maybeVersionStr match {
-      case Some(Version.TimestampAndUuidRegex(versionLabel)) => Version(versionLabel)
-      case _                                                 => Version.Unversioned
-    }
+    val maybeVersionStr: Option[String] = location.toString.split("/").lastOption
+    val parsedVersion = for {
+      path <- maybeVersionStr.toRight(new Exception(s"Empty path: $location"))
+      version <- Version.parse(path)
+    } yield version
+
+    parsedVersion.getOrElse(Version.Unversioned)
   }
 
   private[spark] def versionedToBasePath(location: URI): URI = {

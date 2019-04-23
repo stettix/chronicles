@@ -16,6 +16,8 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 trait TableVersionsSpec {
   this: FlatSpec with Matchers =>
+  val version1 = Version.generateVersion.unsafeRunSync()
+  val version2 = Version.generateVersion.unsafeRunSync()
 
   def tableVersionsBehaviour(emptyTableVersions: IO[TableVersions[IO]]): Unit = {
 
@@ -47,13 +49,13 @@ trait TableVersionsSpec {
     it should "allow partition versions of a partitioned table to be updated and queried" in {
 
       val initialPartitionVersions = Map(
-        Partition(date, "2019-03-01") -> Version("1"),
-        Partition(date, "2019-03-02") -> Version("1")
+        Partition(date, "2019-03-01") -> version1,
+        Partition(date, "2019-03-02") -> version1
       )
 
       val partitionUpdate1 = Map(
-        Partition(date, "2019-03-02") -> Version("2"),
-        Partition(date, "2019-03-03") -> Version("1")
+        Partition(date, "2019-03-02") -> version2,
+        Partition(date, "2019-03-03") -> version1
       )
 
       val scenario = for {
@@ -71,7 +73,7 @@ trait TableVersionsSpec {
                       initialPartitionVersions.map(AddPartitionVersion.tupled).toList)
         )
 
-        version1 <- tableVersions.currentVersion(table)
+        tableVersion1 <- tableVersions.currentVersion(table)
 
         // Do an update with one updated partition and one new one
         commitResult2 <- tableVersions.commit(table,
@@ -79,30 +81,30 @@ trait TableVersionsSpec {
                                                           UpdateMessage("First update"),
                                                           timestamp(2),
                                                           partitionUpdate1.map(AddPartitionVersion.tupled).toList))
-        version2 <- tableVersions.currentVersion(table)
+        tableVersion2 <- tableVersions.currentVersion(table)
 
-      } yield (initialTableVersion, commitResult1, version1, commitResult2, version2)
+      } yield (initialTableVersion, commitResult1, tableVersion1, commitResult2, tableVersion2)
 
-      val (initialTableVersion, commitResult1, version1, commitResult2, version2) =
+      val (initialTableVersion, commitResult1, tableVersion1, commitResult2, tableVersion2) =
         scenario.unsafeRunSync()
 
       initialTableVersion shouldBe PartitionedTableVersion(Map.empty)
       commitResult1 shouldBe SuccessfulCommit
-      version1 shouldBe PartitionedTableVersion(initialPartitionVersions)
+      tableVersion1 shouldBe PartitionedTableVersion(initialPartitionVersions)
 
       commitResult2 shouldBe SuccessfulCommit
-      version2 shouldEqual PartitionedTableVersion(
+      tableVersion2 shouldEqual PartitionedTableVersion(
         Map(
-          Partition(date, "2019-03-01") -> Version("1"),
-          Partition(date, "2019-03-02") -> Version("2"),
-          Partition(date, "2019-03-03") -> Version("1")
+          Partition(date, "2019-03-01") -> version1,
+          Partition(date, "2019-03-02") -> version2,
+          Partition(date, "2019-03-03") -> version1
         ))
     }
 
     it should "allow partitions to be removed from a partitioned table" in {
       val initialPartitionVersions = Map(
-        Partition(date, "2019-03-01") -> Version("1"),
-        Partition(date, "2019-03-02") -> Version("1")
+        Partition(date, "2019-03-01") -> version1,
+        Partition(date, "2019-03-02") -> version1
       )
 
       val scenario = for {
@@ -135,7 +137,7 @@ trait TableVersionsSpec {
           TableUpdate(userId,
                       UpdateMessage("First update"),
                       timestamp(3),
-                      List(AddPartitionVersion(Partition(date, "2019-03-01"), Version("2"))))
+                      List(AddPartitionVersion(Partition(date, "2019-03-01"), version2)))
         )
 
         versionAfterReAdd <- tableVersions.currentVersion(table)
@@ -145,34 +147,38 @@ trait TableVersionsSpec {
       val (versionAfterRemove, versionAfterReAdd) =
         scenario.unsafeRunSync()
 
-      versionAfterRemove shouldBe PartitionedTableVersion(Map(Partition(date, "2019-03-02") -> Version("1")))
+      versionAfterRemove shouldBe PartitionedTableVersion(Map(Partition(date, "2019-03-02") -> version1))
 
       // Note: after re-adding a removed partition, the new version needs to be distinct from the old, removed one.
 
       versionAfterReAdd shouldEqual PartitionedTableVersion(
         Map(
-          Partition(date, "2019-03-01") -> Version("2"),
-          Partition(date, "2019-03-02") -> Version("1")
+          Partition(date, "2019-03-01") -> version2,
+          Partition(date, "2019-03-02") -> version1
         ))
     }
 
     it should "allow versions of a snapshot table to be updated and queried" in {
 
-      val version1 = SnapshotTableVersion(Version("1"))
-      val version2 = SnapshotTableVersion(Version("2"))
+      val tableVersion1 = SnapshotTableVersion(version1)
+      val tableVersion2 = SnapshotTableVersion(version2)
 
       val scenario = for {
         tableVersions <- emptyTableVersions
         _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
         initialTableVersion <- tableVersions.currentVersion(table)
-        commitResult1 <- tableVersions.commit(
-          table,
-          TableUpdate(userId, UpdateMessage("First commit"), timestamp(1), List(AddTableVersion(version1.version))))
+        commitResult1 <- tableVersions.commit(table,
+                                              TableUpdate(userId,
+                                                          UpdateMessage("First commit"),
+                                                          timestamp(1),
+                                                          List(AddTableVersion(tableVersion1.version))))
         currentVersion1 <- tableVersions.currentVersion(table)
 
-        commitResult2 <- tableVersions.commit(
-          table,
-          TableUpdate(userId, UpdateMessage("Second commit"), timestamp(2), List(AddTableVersion(version2.version))))
+        commitResult2 <- tableVersions.commit(table,
+                                              TableUpdate(userId,
+                                                          UpdateMessage("Second commit"),
+                                                          timestamp(2),
+                                                          List(AddTableVersion(tableVersion2.version))))
         currentVersion2 <- tableVersions.currentVersion(table)
 
       } yield (initialTableVersion, commitResult1, currentVersion1, commitResult2, currentVersion2)
@@ -183,7 +189,7 @@ trait TableVersionsSpec {
       initialTableVersion shouldBe SnapshotTableVersion(Version.Unversioned)
 
       commitResult1 shouldBe SuccessfulCommit
-      currentVersion1 shouldBe version1
+      currentVersion1 shouldBe tableVersion1
 
       commitResult2 shouldBe SuccessfulCommit
       currentVersion2 shouldBe currentVersion2
@@ -205,10 +211,7 @@ trait TableVersionsSpec {
 
         version <- tableVersions.commit(
           TableName("schema", "table"),
-          TableUpdate(userId,
-                      UpdateMessage("Commit initial partitions"),
-                      timestamp(1),
-                      List(AddTableVersion(Version("1"))))
+          TableUpdate(userId, UpdateMessage("Commit initial partitions"), timestamp(1), List(AddTableVersion(version1)))
         )
       } yield version
 

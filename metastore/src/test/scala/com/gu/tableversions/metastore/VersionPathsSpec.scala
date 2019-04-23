@@ -8,14 +8,18 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class VersionPathsSpec extends FlatSpec with Matchers {
 
-  it should "return a normalised path if given a path that doesn't end in a '/'" in {
-    VersionPaths.pathFor(new URI("s3://foo/bar"), Version("version-label")) shouldBe new URI(
-      "s3://foo/bar/version-label")
+  val version = Version.generateVersion.unsafeRunSync()
+
+  "Resolving path with a version" should "have the version string appended as a folder" in {
+    VersionPaths.pathFor(new URI("s3://foo/bar/"), version) shouldBe new URI(s"s3://foo/bar/${version.label}")
   }
 
-  "Resolving path with a non-0 version number" should "have the version string appended as a folder" in {
-    VersionPaths.pathFor(new URI("s3://foo/bar/"), Version("version-label")) shouldBe new URI(
-      "s3://foo/bar/version-label")
+  it should "return a normalised path if given a path that doesn't end in a '/'" in {
+    VersionPaths.pathFor(new URI("s3://foo/bar"), version) shouldBe new URI(s"s3://foo/bar/${version.label}")
+  }
+
+  it should "return the original path if no actual version is given" in {
+    VersionPaths.pathFor(new URI("s3://foo/bar"), Version.Unversioned) shouldBe new URI("s3://foo/bar")
   }
 
   "Resolving versioned paths" should "return paths relative to the table location, using the defined versioning scheme" in {
@@ -27,12 +31,12 @@ class VersionPathsSpec extends FlatSpec with Matchers {
       Partition(PartitionColumn("date"), "2019-01-18")
     )
 
-    val partitionPaths = VersionPaths.resolveVersionedPartitionPaths(partitions, Version("test-version"), tableLocation)
+    val partitionPaths = VersionPaths.resolveVersionedPartitionPaths(partitions, version, tableLocation)
 
     partitionPaths shouldBe Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> new URI("s3://bucket/data/date=2019-01-15/test-version"),
-      Partition(PartitionColumn("date"), "2019-01-16") -> new URI("s3://bucket/data/date=2019-01-16/test-version"),
-      Partition(PartitionColumn("date"), "2019-01-18") -> new URI("s3://bucket/data/date=2019-01-18/test-version")
+      Partition(PartitionColumn("date"), "2019-01-15") -> new URI(s"s3://bucket/data/date=2019-01-15/${version.label}"),
+      Partition(PartitionColumn("date"), "2019-01-16") -> new URI(s"s3://bucket/data/date=2019-01-16/${version.label}"),
+      Partition(PartitionColumn("date"), "2019-01-18") -> new URI(s"s3://bucket/data/date=2019-01-18/${version.label}")
     )
   }
 
@@ -42,10 +46,10 @@ class VersionPathsSpec extends FlatSpec with Matchers {
     val partitions = List(Partition(PartitionColumn("date"), "2019-01-15"))
 
     val partitionPaths =
-      VersionPaths.resolveVersionedPartitionPaths(partitions, Version("test-version"), tableLocation)
+      VersionPaths.resolveVersionedPartitionPaths(partitions, version, tableLocation)
 
     partitionPaths shouldBe Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> new URI("s3://bucket/data/date=2019-01-15/test-version")
+      Partition(PartitionColumn("date"), "2019-01-15") -> new URI(s"s3://bucket/data/date=2019-01-15/${version.label}")
     )
   }
 

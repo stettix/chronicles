@@ -1,12 +1,8 @@
 package com.gu.tableversions.core
 
 import java.net.URI
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.util.UUID
 
 import cats.data.NonEmptyList
-import cats.effect.IO
 
 /**
   * A Partition represents a concrete partition of a table, i.e. a partition column with a specific value.
@@ -50,28 +46,6 @@ object PartitionSchema {
   // The special case partition that represents the root partition of a snapshot table.
   val snapshot: PartitionSchema = PartitionSchema(Nil)
 
-}
-
-//
-// Versions
-//
-
-final case class Version(label: String) extends AnyVal
-
-object Version {
-
-  /** Generator for versions using a timestamp + UUID format */
-  implicit val generateVersion: IO[Version] = IO {
-    val versionString = UUID.randomUUID().toString
-    val timestamp = formatter.format(LocalDateTime.now())
-    Version(s"$timestamp-$versionString")
-  }
-
-  val TimestampAndUuidRegex = """(\d{8}-\d{6}-.*)""".r
-
-  private val formatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-
-  val Unversioned = Version("Unversioned")
 }
 
 //

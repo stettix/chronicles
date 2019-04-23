@@ -23,7 +23,9 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   import spark.implicits._
 
-  implicit val generateVersion: IO[Version] = IO.pure(Version("v1"))
+  // Stub version generator that returns the same version on every invocation
+  lazy val version1 = Version.generateVersion.unsafeRunSync()
+  implicit val generateVersion: IO[Version] = IO.pure(version1)
 
   it should "return all partitions for a dataset with a single partition column" in {
 
@@ -59,25 +61,28 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     ).toDS()
 
     val partitionPaths: Map[Partition, URI] = Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> tableUri.resolve("date=2019-01-15/v1"),
-      Partition(PartitionColumn("date"), "2019-01-16") -> tableUri.resolve("date=2019-01-16/v1"),
-      Partition(PartitionColumn("date"), "2019-01-18") -> tableUri.resolve("date=2019-01-18/v1")
+      Partition(PartitionColumn("date"), "2019-01-15") -> tableUri.resolve(s"date=2019-01-15/${version1.label}"),
+      Partition(PartitionColumn("date"), "2019-01-16") -> tableUri.resolve(s"date=2019-01-16/${version1.label}"),
+      Partition(PartitionColumn("date"), "2019-01-18") -> tableUri.resolve(s"date=2019-01-18/${version1.label}")
     )
 
     VersionedDataset.writeVersionedPartitions(events, partitionPaths)
 
     // Check that data was written to the right place.
 
-    readDataset[Event](tableUri.resolve("date=2019-01-15/v1")).collect() should contain theSameElementsAs List(
+    readDataset[Event](tableUri.resolve(s"date=2019-01-15/${version1.label}"))
+      .collect() should contain theSameElementsAs List(
       Event("101", "A", Date.valueOf("2019-01-15")),
       Event("102", "B", Date.valueOf("2019-01-15"))
     )
 
-    readDataset[Event](tableUri.resolve("date=2019-01-16/v1")).collect() should contain theSameElementsAs List(
+    readDataset[Event](tableUri.resolve(s"date=2019-01-16/${version1.label}"))
+      .collect() should contain theSameElementsAs List(
       Event("103", "A", Date.valueOf("2019-01-16"))
     )
 
-    readDataset[Event](tableUri.resolve("date=2019-01-18/v1")).collect() should contain theSameElementsAs List(
+    readDataset[Event](tableUri.resolve(s"date=2019-01-18/${version1.label}"))
+      .collect() should contain theSameElementsAs List(
       Event("104", "B", Date.valueOf("2019-01-18"))
     )
   }
@@ -88,7 +93,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     // Stub metastore
     val initialTableVersion = SnapshotTableVersion(Version.Unversioned)
 
-    val stubbedChanges = TableChanges(List(UpdateTableVersion(Version(""))))
+    val stubbedChanges = TableChanges(List(UpdateTableVersion(version1)))
     implicit val stubMetastore: Metastore[IO] = new StubMetastore(
       currentVersion = initialTableVersion,
       computedChanges = stubbedChanges
@@ -97,7 +102,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     // Stub table versions
     val committedTableUpdatesRef = Ref[IO].of(List.empty[(TableName, TableVersions.TableUpdate)]).unsafeRunSync()
     implicit val stubTableVersions = new StubTableVersions(
-      currentVersions = Map(usersTable.name -> SnapshotTableVersion(Version("1"))),
+      currentVersions = Map(usersTable.name -> SnapshotTableVersion(version1)),
       committedTableUpdatesRef
     )
 
@@ -114,10 +119,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
       users.toDS().versionedInsertInto(usersTable, userId, "Test insert users into table")
 
     // Check that data was written correctly to the right place
-    readDataset[User](resolveTablePath("v1")).collect() should contain theSameElementsAs users
+    readDataset[User](resolveTablePath(version1.label)).collect() should contain theSameElementsAs users
 
     // Check that we performed the right version updates and returned the right results
-    tableVersion shouldBe SnapshotTableVersion(Version("1"))
+    tableVersion shouldBe SnapshotTableVersion(version1)
     metastoreChanges shouldBe stubbedChanges
 
     val tableUpdates = stubTableVersions.committedTableUpdates.unsafeRunSync()
@@ -136,9 +141,9 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
     val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
     val nextPartitionVersions = Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> Version("3"),
-      Partition(PartitionColumn("date"), "2019-01-16") -> Version("2"),
-      Partition(PartitionColumn("date"), "2019-01-17") -> Version("1")
+      Partition(PartitionColumn("date"), "2019-01-15") -> version1,
+      Partition(PartitionColumn("date"), "2019-01-16") -> version1,
+      Partition(PartitionColumn("date"), "2019-01-17") -> version1
     )
     val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
 
@@ -175,9 +180,12 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
       events.toDS().versionedInsertInto(eventsTable, userId, "Test insert events into table")
 
     // Check that data was written correctly to the right place
-    readDataset[Event](resolveTablePath("date=2019-01-15/v1")).collect() should contain theSameElementsAs eventsDay1
-    readDataset[Event](resolveTablePath("date=2019-01-16/v1")).collect() should contain theSameElementsAs eventsDay2
-    readDataset[Event](resolveTablePath("date=2019-01-17/v1")).collect() should contain theSameElementsAs eventsDay3
+    readDataset[Event](resolveTablePath(s"date=2019-01-15/${version1.label}"))
+      .collect() should contain theSameElementsAs eventsDay1
+    readDataset[Event](resolveTablePath(s"date=2019-01-16/${version1.label}"))
+      .collect() should contain theSameElementsAs eventsDay2
+    readDataset[Event](resolveTablePath(s"date=2019-01-17/${version1.label}"))
+      .collect() should contain theSameElementsAs eventsDay3
 
     // Check that we performed the right version updates and returned the right results
     tableVersion shouldBe PartitionedTableVersion(nextPartitionVersions)

@@ -48,10 +48,8 @@ trait MetastoreSpec {
         scenario.unsafeRunSync()
 
       initialVersion shouldBe SnapshotTableVersion(Version.Unversioned)
-      firstUpdatedVersion shouldBe
-        SnapshotTableVersion(version1)
-      secondUpdatedVersion shouldBe
-        SnapshotTableVersion(version2)
+      firstUpdatedVersion shouldBe SnapshotTableVersion(version1)
+      secondUpdatedVersion shouldBe SnapshotTableVersion(version2)
       revertedVersion shouldEqual firstUpdatedVersion
     }
 
