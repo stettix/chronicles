@@ -57,6 +57,7 @@ lazy val spark = project
       "log4j" % "log4j" % "1.2.17"
     ) ++ sparkDependencies)
   .settings(parallelExecution in Test := false)
+  .settings(fork in Test := true)
   .dependsOn(core, metastore % "compile->compile;test->test")
 
 lazy val examples = project
@@ -66,4 +67,5 @@ lazy val examples = project
     libraryDependencies ++= sparkDependencies
   )
   .settings(parallelExecution in Test := false)
+  .settings(fork in Test := true)
   .dependsOn(core, metastore, spark % "compile->compile;test->test")
