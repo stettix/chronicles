@@ -17,4 +17,6 @@ object Dependencies {
       "org.typelevel" %% "cats-effect" % "1.2.0"
     )
 
+  lazy val scalatest = "org.scalatest" %% "scalatest" % "3.0.5"
+
 }

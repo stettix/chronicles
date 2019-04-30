@@ -6,7 +6,6 @@ import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
 ThisBuild / organization := "com.gu"
 ThisBuild / name := "table-versions"
 ThisBuild / description := "Version control for your Big Data!"
-
 lazy val commonSettings = Seq(
   version := "0.0.1",
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
@@ -14,7 +13,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= scala211CompilerFlags,
   scalafmtOnCompile := true,
   libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.5" % Test,
+    scalatest % Test,
     "org.scalacheck" %% "scalacheck" % "1.14.0" % Test
   ),
   resolvers += Resolver.sonatypeRepo("releases"),
@@ -29,7 +28,7 @@ lazy val testSettings = Defaults.itSettings ++ Seq(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, metastore, spark, cli, examples)
+  .aggregate(core, metastore, spark, glue, cli, examples)
   .settings(commonSettings)
 
 lazy val core = project
@@ -59,6 +58,20 @@ lazy val spark = project
   .settings(parallelExecution in Test := false)
   .settings(fork in Test := true)
   .dependsOn(core, metastore % "compile->compile;test->test")
+
+lazy val glue = project
+  .in(file("glue"))
+  .settings(commonSettings)
+  .configs(IntegrationTest)
+  .settings(libraryDependencies ++= Seq(
+    "commons-io" % "commons-io" % "2.6",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
+    "log4j" % "log4j" % "1.2.17",
+    "com.amazonaws" % "aws-java-sdk-glue" % "1.11.538",
+    scalatest % IntegrationTest
+  ))
+  .settings(parallelExecution in Test := false)
+  .dependsOn(core, metastore % "compile->compile;test->test;it->test")
 
 lazy val examples = project
   .in(file("examples"))

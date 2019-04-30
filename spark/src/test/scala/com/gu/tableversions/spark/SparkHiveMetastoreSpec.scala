@@ -35,8 +35,6 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
   // Tests specific to the Spark/Hive implementation
   //
 
-  val validVersion = Version.generateVersion.unsafeRunSync()
-
   "Parsing a valid partition string" should "produce the expected values" in {
     val testData = Table(
       ("partitionStr", "expected"),
@@ -86,18 +84,6 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
     }
   }
 
-  "Parsing the version from versioned paths" should "produce the version number" in {
-    parseVersion(new URI(s"file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/2019/${validVersion.label}")) shouldBe validVersion
-
-    parseVersion(new URI(s"s3://bucket/pageview/date=2019-01-21/${validVersion.label}")) shouldBe validVersion
-    parseVersion(new URI(s"s3://bucket/identity/${validVersion.label}")) shouldBe validVersion
-  }
-
-  "Parsing the version from unversioned paths" should "produce version 0" in {
-    parseVersion(new URI("s3://bucket/pageview/date=2019-01-21")) shouldBe Version.Unversioned
-    parseVersion(new URI("s3://bucket/identity")) shouldBe Version.Unversioned
-  }
-
   "Converting a partition path to a Hive partition expression" should "do the expected conversion" in {
     val testData = Table(
       ("partition path", "expected Hive partition expression"),
@@ -108,15 +94,6 @@ class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite 
     forAll(testData) { (partitionPath, expected) =>
       SparkHiveMetastore.toPartitionExpr(partitionPath) shouldBe expected
     }
-  }
-
-  "Getting the base path" should "return the same path if it's already unversioned" in {
-    versionedToBasePath(new URI("hdfs://bucket/identity")) shouldBe new URI("hdfs://bucket/identity")
-  }
-
-  it should "return strip off the version part of the path" in {
-    versionedToBasePath(new URI(s"hdfs://bucket/identity/${validVersion.label}")) shouldBe new URI(
-      "hdfs://bucket/identity")
   }
 
   private def initPartitionedTable(table: TableDefinition): IO[Unit] = {

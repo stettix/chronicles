@@ -32,13 +32,13 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
       }
 
       partitionVersions = partitionLocations.map {
-        case (partition, location) => parsePartition(partition) -> parseVersion(location)
+        case (partition, location) => parsePartition(partition) -> VersionPaths.parseVersion(location)
       }
     } yield PartitionedTableVersion(partitionVersions.toMap)
 
     val snapshotTableVersion: F[TableVersion] = for {
       tableLocation <- findTableLocation(table)
-      versionNumber = parseVersion(tableLocation)
+      versionNumber = VersionPaths.parseVersion(tableLocation)
     } yield SnapshotTableVersion(versionNumber)
 
     // Choose the calculation to perform based on whether we have a partitioned table or not
@@ -98,7 +98,7 @@ class SparkHiveMetastore[F[_]](implicit spark: SparkSession, F: Sync[F]) extends
       performUpdate(s"Updating table location of table ${table.fullyQualifiedName}", updateQuery)
     }
 
-    findTableLocation(table).map(versionedToBasePath).flatMap(updateLocation).void
+    findTableLocation(table).map(VersionPaths.versionedToBasePath).flatMap(updateLocation).void
   }
 
   private def versionedPartitionLocation(table: TableName, partition: Partition, version: Version): F[URI] =
@@ -189,29 +189,6 @@ object SparkHiveMetastore {
       case head :: tail => Partition(head, tail: _*)
       case _            => throw new Exception(s"Empty partition string found: $partitionStr")
     }
-  }
-
-  private[spark] def parseVersion(location: URI): Version = {
-    val maybeVersionStr: Option[String] = location.toString.split("/").lastOption
-    val parsedVersion = for {
-      path <- maybeVersionStr.toRight(new Exception(s"Empty path: $location"))
-      version <- Version.parse(path)
-    } yield version
-
-    parsedVersion.getOrElse(Version.Unversioned)
-  }
-
-  private[spark] def versionedToBasePath(location: URI): URI = {
-    def parentPath(uri: URI): URI = {
-      val parentPath = new File(uri.getPath).getParent
-      new URI(uri.getScheme, uri.getUserInfo, uri.getHost, uri.getPort, parentPath, uri.getQuery, uri.getFragment)
-    }
-
-    if (parseVersion(location) == Version.Unversioned)
-      location
-    else
-      parentPath(location)
-
   }
 
 }

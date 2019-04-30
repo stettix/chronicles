@@ -17,13 +17,14 @@ trait MetastoreSpec {
 
   def metastoreWithSnapshotSupport(
       emptyMetastore: IO[Metastore[IO]],
-      initHiveTable: IO[Unit],
-      table: TableName): Unit = {
+      initUnderlyingTable: IO[Unit],
+      table: TableName,
+      tearDownUnderlyingTable: IO[Unit] = IO.unit): Unit = {
 
     it should "allow table versions to be updated for snapshot tables" in {
       val scenario = for {
         metastore <- emptyMetastore
-        _ <- initHiveTable
+        _ <- initUnderlyingTable
 
         initialVersion <- metastore.currentVersion(table)
 
@@ -45,7 +46,7 @@ trait MetastoreSpec {
       } yield (initialVersion, version1, firstUpdatedVersion, version2, secondUpdatedVersion, revertedVersion)
 
       val (initialVersion, version1, firstUpdatedVersion, version2, secondUpdatedVersion, revertedVersion) =
-        scenario.unsafeRunSync()
+        scenario.guarantee(tearDownUnderlyingTable).unsafeRunSync()
 
       initialVersion shouldBe SnapshotTableVersion(Version.Unversioned)
       firstUpdatedVersion shouldBe SnapshotTableVersion(version1)
@@ -57,15 +58,16 @@ trait MetastoreSpec {
 
   def metastoreWithPartitionsSupport(
       emptyMetastore: IO[Metastore[IO]],
-      initHiveTable: IO[Unit],
-      table: TableName): Unit = {
+      initUnderlyingTable: IO[Unit],
+      table: TableName,
+      tearDownUnderlyingTable: IO[Unit] = IO.unit): Unit = {
 
     val dateCol = PartitionColumn("date")
 
     it should "allow individual partitions to be updated in partitioned tables" in {
       val scenario = for {
         metastore <- emptyMetastore
-        _ <- initHiveTable
+        _ <- initUnderlyingTable
 
         initialVersion <- metastore.currentVersion(table)
 
@@ -122,7 +124,7 @@ trait MetastoreSpec {
            version2,
            versionAfterSecondUpdate,
            versionAfterPartitionRemoved) =
-        scenario.unsafeRunSync()
+        scenario.guarantee(tearDownUnderlyingTable).unsafeRunSync()
 
       initialVersion shouldBe PartitionedTableVersion(Map.empty)
 
@@ -154,34 +156,43 @@ trait MetastoreSpec {
     it should "return an error if trying to get the version of an unknown table" in {
       val scenario = for {
         metastore <- emptyMetastore
-        _ <- initHiveTable
+        _ <- initUnderlyingTable
 
         version <- metastore.currentVersion(TableName("unknown", "table"))
 
       } yield version
 
-      val ex = the[Exception] thrownBy scenario.unsafeRunSync()
+      val ex = the[Exception] thrownBy scenario.guarantee(tearDownUnderlyingTable).unsafeRunSync()
       ex.getMessage.toLowerCase should include regex "unknown.*not found"
     }
 
     it should "not allow updating the version of an unknown partition" in {
       val scenario = for {
         metastore <- emptyMetastore
-        _ <- initHiveTable
+        _ <- initUnderlyingTable
+        initialVersion <- metastore.currentVersion(table)
         version <- Version.generateVersion
-        _ <- metastore.update(
-          table,
-          TableChanges(
-            List(
-              UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), version)
+        updateResultAsEither <- metastore
+          .update(
+            table,
+            TableChanges(
+              List(
+                UpdatePartitionVersion(Partition(dateCol, "2019-03-01"), version)
+              )
             )
           )
-        )
+          .redeem(
+            error => Left(error),
+            success => Right(success)
+          )
+        versionAfterUpdateAttempt <- metastore.currentVersion(table)
+      } yield (updateResultAsEither, initialVersion, versionAfterUpdateAttempt)
 
-      } yield ()
+      val (updateResultAsEither, initialVersion, versionAfterUpdateAttempt) =
+        scenario.guarantee(tearDownUnderlyingTable).unsafeRunSync()
 
-      val ex = the[Exception] thrownBy scenario.unsafeRunSync()
-      ex.getMessage.toLowerCase should include regex "partition not found"
+      updateResultAsEither should be('left)
+      versionAfterUpdateAttempt shouldBe initialVersion
     }
 
   }
