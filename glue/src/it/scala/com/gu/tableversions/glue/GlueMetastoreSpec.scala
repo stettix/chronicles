@@ -24,9 +24,6 @@ class GlueMetastoreSpec extends FlatSpec with Matchers with BeforeAndAfterAll wi
   val AWSRegionEnvVarName = "TABLE_VERSIONS_TEST_AWS_REGION"
   val SchemaEnvVarName = "TABLE_VERSIONS_TEST_GLUE_DATABASE"
 
-  val maybeAwsProfile = Properties.envOrNone(AWSProfileEnvVarName)
-  val maybeSchema = Properties.envOrNone(SchemaEnvVarName)
-
   val envVars = for {
     schema <- readMandatoryEnvVariable(SchemaEnvVarName)
     awsRegion <- readMandatoryEnvVariable(AWSRegionEnvVarName)
