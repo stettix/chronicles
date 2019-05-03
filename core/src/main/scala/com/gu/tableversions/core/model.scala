@@ -30,7 +30,10 @@ object Partition {
   /** Convenience constructor for multiple partitions. */
   def apply(first: ColumnValue, rest: ColumnValue*): Partition = Partition(NonEmptyList(first, rest.toList))
 
-  case class PartitionColumn(name: String) extends AnyVal
+  /**
+    * Note: do not add `extends AnyVal`. It breaks kryo serialisation.
+    */
+  case class PartitionColumn(name: String)
 
   case class ColumnValue(column: PartitionColumn, value: String)
 

@@ -1,12 +1,9 @@
 package com.gu.tableversions.core
 
 import java.net.URI
-import java.time.LocalDateTime
-import java.util.UUID
 
 import com.gu.tableversions.core.Partition.PartitionColumn
 import org.scalatest.{EitherValues, FlatSpec, Matchers}
-import cats.implicits._
 
 class ModelSpec extends FlatSpec with Matchers with EitherValues {
 
