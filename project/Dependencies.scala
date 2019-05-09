@@ -19,4 +19,6 @@ object Dependencies {
 
   lazy val scalatest = "org.scalatest" %% "scalatest" % "3.0.5"
 
+  val circeVersion = "0.10.0"
+
 }

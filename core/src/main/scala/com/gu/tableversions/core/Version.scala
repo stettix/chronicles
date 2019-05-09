@@ -30,8 +30,7 @@ object Version {
   val Unversioned = Version(Instant.MIN, new UUID(0L, 0L))
 
   /** Generator for versions using a timestamp + UUID format */
-  implicit val generateVersion: IO[Version] =
-    IO { Version(Instant.now(), UUID.randomUUID()) }
+  val generateVersion: IO[Version] = IO { Version(Instant.now(), UUID.randomUUID()) }
 
   /** Regex that can be used to recognise a valid format string. */
   val TimestampAndUuidRegex = """(\d{8}-\d{6}.\d{9})-(.*)""".r

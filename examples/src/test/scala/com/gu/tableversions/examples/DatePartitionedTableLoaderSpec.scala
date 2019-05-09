@@ -9,6 +9,7 @@ import com.gu.tableversions.core.Partition.PartitionColumn
 import com.gu.tableversions.core.TableVersions._
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -17,6 +18,8 @@ import org.scalatest.{FlatSpec, Matchers}
   * It demonstrates how individual partitions in such a table can be updated using versioning.
   */
 class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+
+  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
   import DatePartitionedTableLoaderSpec._
 
@@ -41,6 +44,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     import spark.implicits._
     implicit val tableVersions: TableVersions[IO] = InMemoryTableVersions[IO].unsafeRunSync()
     implicit val metastore: Metastore[IO] = new SparkHiveMetastore[IO]()
+    implicit val versionGenerator: IO[Version] = Version.generateVersion
 
     val loader = new TableLoader[Pageview](table, ddl, isSnapshot = false)
 

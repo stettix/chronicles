@@ -22,37 +22,6 @@ class VersionPathsSpec extends FlatSpec with Matchers {
     VersionPaths.pathFor(new URI("s3://foo/bar"), Version.Unversioned) shouldBe new URI("s3://foo/bar")
   }
 
-  "Resolving versioned paths" should "return paths relative to the table location, using the defined versioning scheme" in {
-    val tableLocation = new URI("s3://bucket/data/")
-
-    val partitions = List(
-      Partition(PartitionColumn("date"), "2019-01-15"),
-      Partition(PartitionColumn("date"), "2019-01-16"),
-      Partition(PartitionColumn("date"), "2019-01-18")
-    )
-
-    val partitionPaths = VersionPaths.resolveVersionedPartitionPaths(partitions, version, tableLocation)
-
-    partitionPaths shouldBe Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> new URI(s"s3://bucket/data/date=2019-01-15/${version.label}"),
-      Partition(PartitionColumn("date"), "2019-01-16") -> new URI(s"s3://bucket/data/date=2019-01-16/${version.label}"),
-      Partition(PartitionColumn("date"), "2019-01-18") -> new URI(s"s3://bucket/data/date=2019-01-18/${version.label}")
-    )
-  }
-
-  it should "correctly resolved paths even if the base bath doesn't have a trailing slash" in {
-    val tableLocation = new URI("s3://bucket/data")
-
-    val partitions = List(Partition(PartitionColumn("date"), "2019-01-15"))
-
-    val partitionPaths =
-      VersionPaths.resolveVersionedPartitionPaths(partitions, version, tableLocation)
-
-    partitionPaths shouldBe Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> new URI(s"s3://bucket/data/date=2019-01-15/${version.label}")
-    )
-  }
-
   "Parsing the version from versioned paths" should "produce the version number" in {
     VersionPaths.parseVersion(new URI(s"file:/tmp/7bbc577c-471d-4ece-8462/table/date=2019-01-21/2019/${version.label}")) shouldBe version
 

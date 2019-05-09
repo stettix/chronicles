@@ -1,16 +1,17 @@
 package com.gu.tableversions.spark
 
-import java.net.URI
 import java.time.Instant
 
 import cats.effect.IO
+import cats.implicits._
 import com.gu.tableversions.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion}
 import com.gu.tableversions.core.TableVersions.{TableOperation, TableUpdate, UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
-import cats.implicits._
+import com.gu.tableversions.spark.filesystem.VersionedFileSystem
+import com.gu.tableversions.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
+import org.apache.spark.sql.{Dataset, Row, SaveMode, SparkSession}
 
 /**
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
@@ -51,11 +52,11 @@ object VersionedDataset {
         // Find the partition values in the given dataset
         datasetPartitions <- IO(VersionedDataset.partitionValues(dataset, table.partitionSchema)(dataset.sparkSession))
 
-        // Resolve the path that each partition should be written to, based on their version
-        partitionPaths = VersionPaths.resolveVersionedPartitionPaths(datasetPartitions, version, table.location)
+        // Use the same version for each of the partitions we'll be writing
+        partitionVersions = datasetPartitions.map(p => p -> version).toMap
 
         // Write Spark dataset to the versioned path
-        _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, partitionPaths))
+        _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, table, partitionVersions)(dataset.sparkSession))
 
       } yield datasetPartitions.map(partition => AddPartitionVersion(partition, version))
 
@@ -115,24 +116,19 @@ object VersionedDataset {
   /**
     * Write the given partitioned dataset, storing each partition in the associated path.
     */
-  private[spark] def writeVersionedPartitions[T](dataset: Dataset[T], partitionPaths: Map[Partition, URI]): Unit = {
-    // This is a slow and inefficient implementation that writes each partition in sequence,
-    // we can look into a more performant solution later.
+  private[spark] def writeVersionedPartitions[T](
+      dataset: Dataset[T],
+      table: TableDefinition,
+      partitionVersions: Map[Partition, Version])(implicit spark: SparkSession): Unit = {
 
-    def filteredForPartition(partition: Partition): Dataset[T] =
-      partition.columnValues.foldLeft(dataset) {
-        case (filteredDataset, partitionColumn) =>
-          filteredDataset.where(s"${partitionColumn.column.name} = '${partitionColumn.value}'")
-      }
+    VersionedFileSystem.writeConfig(VersionedFileSystemConfig(partitionVersions),
+                                    dataset.sparkSession.sparkContext.hadoopConfiguration)
 
-    val datasetsWithPaths: Map[Dataset[T], URI] =
-      partitionPaths.map { case (partition, path) => filteredForPartition(partition) -> path }
+    val partitions = table.partitionSchema.columns.map(_.name)
 
-    datasetsWithPaths.foreach {
-      case (datasetForPartition, partitionPath) =>
-        datasetForPartition.write
-          .parquet(partitionPath.toString) // TODO: Take in format parameter. Or a dataset writer?
-    }
+    dataset.write
+      .partitionBy(partitions: _*)
+      .mode(SaveMode.Append)
+      .parquet(VersionedFileSystem.scheme + "://" + table.location.getPath) // TODO: Take in format parameter. Or a dataset writer?
   }
-
 }

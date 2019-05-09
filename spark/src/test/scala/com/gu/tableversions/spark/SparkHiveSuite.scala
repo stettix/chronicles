@@ -78,7 +78,7 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
       .set("spark.sql.orc.impl", "native")
       .set("spark.sql.shuffle.partitions", "8") // For speeding up tests. The default is 200, see https://spark.apache.org/docs/latest/sql-programming-guide.html#other-configuration-options
 
-    jobConfig.foreach { case (key, value) => conf.set(key, value) }
+    (jobConfig ++ customConfig).foreach { case (key, value) => conf.set(key, value) }
 
     SparkSession
       .builder()
@@ -86,6 +86,11 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
       .enableHiveSupport()
       .getOrCreate()
   }
+
+  /**
+    * Override in test classes to provide specific Spark configuration.
+    */
+  protected def customConfig: Map[String, String] = Map.empty
 
   implicit lazy val ss: SparkSession = spark
 

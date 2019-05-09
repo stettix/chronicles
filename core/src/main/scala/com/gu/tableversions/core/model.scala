@@ -12,11 +12,16 @@ final case class Partition(columnValues: NonEmptyList[Partition.ColumnValue]) {
   /** Given a base path for the table, return the path to the partition. */
   def resolvePath(tableLocation: URI): URI = {
     def normalised(dir: URI): URI = if (dir.toString.endsWith("/")) dir else new URI(dir.toString + "/")
-
-    val partitionsSuffix =
-      columnValues.map(columnValue => s"${columnValue.column.name}=${columnValue.value}").toList.mkString("", "/", "/")
-    normalised(tableLocation).resolve(partitionsSuffix)
+    normalised(tableLocation).resolve(s"$toString/")
   }
+
+  /**
+    * Render Partition as a partition path in the format returned from SHOW PARTITIONS queries, for example:
+    *
+    * event_date=2019-02-09/processed_date=2019-02-09
+    */
+  override def toString: String =
+    columnValues.map(columnValue => s"${columnValue.column.name}=${columnValue.value}").toList.mkString("", "/", "")
 }
 
 object Partition {
@@ -36,6 +41,32 @@ object Partition {
   case class PartitionColumn(name: String)
 
   case class ColumnValue(column: PartitionColumn, value: String)
+
+  private val ColumnValueRegex =
+    """(?x)
+      |([a-z][a-z0-9_]*)  # column name
+      |=
+      |(.+)               # column value
+    """.stripMargin.r
+
+  /**
+    * Parse Partition from partition path in the format returned from SHOW PARTITIONS queries, for example:
+    *
+    * event_date=2019-02-09/processed_date=2019-02-09
+    */
+  def parse(partitionStr: String): Either[Throwable, Partition] = {
+    import cats.implicits._
+
+    def parseColumnValue(str: String): Either[Throwable, ColumnValue] = str match {
+      case ColumnValueRegex(columnName, value) => Right(ColumnValue(PartitionColumn(columnName), value))
+      case _                                   => Left(new Exception(s"Invalid partition string: $partitionStr"))
+    }
+
+    partitionStr.split("/").toList.traverse(parseColumnValue).flatMap {
+      case head :: tail => Right(Partition(head, tail: _*))
+      case _            => Left(new Exception(s"Empty partition string found: $partitionStr"))
+    }
+  }
 
 }
 

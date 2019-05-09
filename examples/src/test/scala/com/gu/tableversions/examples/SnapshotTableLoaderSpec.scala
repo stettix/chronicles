@@ -7,6 +7,7 @@ import cats.effect.IO
 import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -15,6 +16,8 @@ import org.scalatest.{FlatSpec, Matchers}
   * every time we write to it (no partial updates).
   */
 class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+
+  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
   import SnapshotTableLoaderSpec._
 
@@ -34,6 +37,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     implicit val tableVersions: TableVersions[IO] = InMemoryTableVersions[IO].unsafeRunSync()
     implicit val metastore: Metastore[IO] = new SparkHiveMetastore[IO]()
+    implicit val versionGenerator: IO[Version] = Version.generateVersion
 
     val userId = UserId("test user")
 

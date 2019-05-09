@@ -18,6 +18,7 @@ import scala.reflect.runtime.universe.TypeTag
 class TableLoader[T <: Product: TypeTag](table: TableDefinition, createTableDdl: String, isSnapshot: Boolean)(
     implicit tableVersions: TableVersions[IO],
     metastore: Metastore[IO],
+    generateVersion: IO[Version],
     spark: SparkSession)
     extends LazyLogging {
 
@@ -35,7 +36,6 @@ class TableLoader[T <: Product: TypeTag](table: TableDefinition, createTableDdl:
     spark.table(table.name.fullyQualifiedName).as[T]
 
   def insert(dataset: Dataset[T], userId: UserId, message: String): Unit = {
-    import Version._
     import VersionedDataset._
 
     val (latestVersion, metastoreChanges) = dataset.versionedInsertInto(table, userId, message)
@@ -55,5 +55,4 @@ class TableLoader[T <: Product: TypeTag](table: TableDefinition, createTableDdl:
 
     checkout.unsafeRunSync()
   }
-
 }
