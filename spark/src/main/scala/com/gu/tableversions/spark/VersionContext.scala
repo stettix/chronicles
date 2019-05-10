@@ -11,52 +11,64 @@ import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
-import org.apache.spark.sql.{Dataset, Row, SaveMode, SparkSession}
+import org.apache.spark.sql.{Dataset, Row, SaveMode}
 
 /**
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
   * using the appropriate paths for storage, and committing version changes.
   */
-object VersionedDataset {
+final case class VersionContext(
+    tableVersions: TableVersions[IO],
+    metastore: Metastore[IO],
+    generateVersion: IO[Version]
+)
 
-  implicit class DatasetOps[T](val delegate: Dataset[T])(
-      implicit tableVersions: TableVersions[IO],
-      metastore: Metastore[IO],
-      generateVersion: IO[Version]) {
+final case class SparkSupport(versionContext: VersionContext) {
 
-    /**
-      * Insert the dataset into the given versioned table.
-      *
-      * This emulates the behaviour of Hive inserts in that it will overwrite any partitions present in the dataset,
-      * while leaving other partitions unchanged.
-      *
-      * @return a tuple containing the updated table version information, and a list of the changes that were applied
-      *         to the metastore.
-      */
-    def versionedInsertInto(table: TableDefinition, userId: UserId, message: String): (TableVersion, TableChanges) =
-      versionedInsertDatasetIntoTable(delegate, table, userId, message).unsafeRunSync()
+  object syntax {
 
+    implicit class DatasetOps[T](val delegate: Dataset[T]) {
+
+      /**
+        * Insert the dataset into the given versioned table.
+        *
+        * This emulates the behaviour of Hive inserts in that it will overwrite any partitions present in the dataset,
+        * while leaving other partitions unchanged.
+        *
+        * @return a tuple containing the updated table version information, and a list of the changes that were applied
+        *         to the metastore.
+        */
+      def versionedInsertInto(table: TableDefinition, userId: UserId, message: String): (TableVersion, TableChanges) =
+        SparkSupport.versionedInsertDatasetIntoTable(versionContext, delegate, table, userId, message).unsafeRunSync()
+    }
   }
+}
+
+object SparkSupport {
 
   /**
     * Keep default (public) scope. It was `private` before and failed at Runtime (yet compiled...).
     * Have not tried with other scopes.
     */
-  def versionedInsertDatasetIntoTable[T](dataset: Dataset[T], table: TableDefinition, userId: UserId, message: String)(
-      implicit tableVersions: TableVersions[IO],
-      metastore: Metastore[IO],
-      generateVersion: IO[Version]): IO[(TableVersion, TableChanges)] = {
+  def versionedInsertDatasetIntoTable[T](
+      versionContext: VersionContext,
+      dataset: Dataset[T],
+      table: TableDefinition,
+      userId: UserId,
+      message: String): IO[(TableVersion, TableChanges)] = {
+
+    import versionContext._
 
     def writePartitionedDataset(version: Version): IO[List[TableOperation]] =
       for {
         // Find the partition values in the given dataset
-        datasetPartitions <- IO(VersionedDataset.partitionValues(dataset, table.partitionSchema)(dataset.sparkSession))
+        datasetPartitions <- IO(partitionValues(dataset, table.partitionSchema))
 
         // Use the same version for each of the partitions we'll be writing
         partitionVersions = datasetPartitions.map(p => p -> version).toMap
 
         // Write Spark dataset to the versioned path
-        _ <- IO(VersionedDataset.writeVersionedPartitions(dataset, table, partitionVersions)(dataset.sparkSession))
+        _ <- IO(writeVersionedPartitions(dataset, table, partitionVersions))
 
       } yield datasetPartitions.map(partition => AddPartitionVersion(partition, version))
 
@@ -90,8 +102,7 @@ object VersionedDataset {
   /**
     * Get the unique partition values that exist within the given dataset, based on given partition columns.
     */
-  private[spark] def partitionValues[T](dataset: Dataset[T], partitionSchema: PartitionSchema)(
-      implicit spark: SparkSession): List[Partition] = {
+  private[spark] def partitionValues[T](dataset: Dataset[T], partitionSchema: PartitionSchema): List[Partition] = {
     // Query dataset for partitions
     // NOTE: this implementation has not been optimised yet
     val partitionColumnsList = partitionSchema.columns.map(_.name)
@@ -119,7 +130,7 @@ object VersionedDataset {
   private[spark] def writeVersionedPartitions[T](
       dataset: Dataset[T],
       table: TableDefinition,
-      partitionVersions: Map[Partition, Version])(implicit spark: SparkSession): Unit = {
+      partitionVersions: Map[Partition, Version]): Unit = {
 
     VersionedFileSystem.writeConfig(VersionedFileSystemConfig(partitionVersions),
                                     dataset.sparkSession.sparkContext.hadoopConfiguration)

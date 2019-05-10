@@ -4,13 +4,11 @@ import java.net.URI
 import java.nio.file.Paths
 import java.sql.{Date, Timestamp}
 
-import cats.effect.IO
 import com.gu.tableversions.core.Partition.PartitionColumn
 import com.gu.tableversions.core.TableVersions._
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.SparkHiveSuite
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
-import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -43,11 +41,11 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
   "Writing multiple versions of a date partitioned dataset" should "produce distinct partition versions" in {
 
     import spark.implicits._
-    implicit val tableVersions: TableVersions[IO] = InMemoryTableVersions[IO].unsafeRunSync()
-    implicit val metastore: Metastore[IO] = new SparkHiveMetastore[IO]()
-    implicit val versionGenerator: IO[Version] = Version.generateVersion
 
-    val loader = new TableLoader[Pageview](table, ddl, isSnapshot = false)
+    val versionContext = TestVersionContext.default.unsafeRunSync()
+    import versionContext.tableVersions
+
+    val loader = new TableLoader[Pageview](versionContext, table, ddl, isSnapshot = false)
 
     val userId = UserId("test user")
     loader.initTable(userId, UpdateMessage("init"))

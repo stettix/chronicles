@@ -3,12 +3,10 @@ package com.gu.tableversions.examples
 import java.net.URI
 import java.nio.file.Paths
 
-import cats.effect.IO
 import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore
+import com.gu.tableversions.spark.SparkHiveSuite
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
-import com.gu.tableversions.spark.{SparkHiveMetastore, SparkHiveSuite}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -35,13 +33,12 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
   "Writing multiple versions of a snapshot dataset" should "produce distinct versions" in {
     import spark.implicits._
 
-    implicit val tableVersions: TableVersions[IO] = InMemoryTableVersions[IO].unsafeRunSync()
-    implicit val metastore: Metastore[IO] = new SparkHiveMetastore[IO]()
-    implicit val versionGenerator: IO[Version] = Version.generateVersion
+    val versionContext = TestVersionContext.default.unsafeRunSync()
+    import versionContext.tableVersions
 
     val userId = UserId("test user")
 
-    val loader = new TableLoader[User](table, ddl, isSnapshot = true)
+    val loader = new TableLoader[User](versionContext, table, ddl, isSnapshot = true)
     loader.initTable(userId, UpdateMessage("init"))
 
     // Write the data to the table

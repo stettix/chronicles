@@ -11,15 +11,15 @@ import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore
 import com.gu.tableversions.metastore.Metastore.TableChanges
 import com.gu.tableversions.metastore.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
-import com.gu.tableversions.spark.VersionedDataset._
-import com.gu.tableversions.spark.VersionedDatasetSpec.{Event, User}
+import com.gu.tableversions.spark.VersionContext._
+import com.gu.tableversions.spark.VersionContextSpec.{Event, User}
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import org.apache.spark.sql.Dataset
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.reflect.runtime.universe.TypeTag
 
-class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
@@ -28,7 +28,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
   // Stub version generator that returns the same version on every invocation
   lazy val version1 = Version.generateVersion.unsafeRunSync()
   lazy val version2 = Version.generateVersion.unsafeRunSync()
-  implicit val generateVersion: IO[Version] = IO.pure(version1)
+  val generateVersion: IO[Version] = IO.pure(version1)
 
   it should "return all partitions for a dataset with a single partition column" in {
 
@@ -46,12 +46,12 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
       Partition(PartitionColumn("date"), "2019-01-16"),
       Partition(PartitionColumn("date"), "2019-01-18")
     )
-    VersionedDataset.partitionValues(partitionedDataset, schema) should contain theSameElementsAs expectedPartitions
+    SparkSupport.partitionValues(partitionedDataset, schema) should contain theSameElementsAs expectedPartitions
   }
 
   it should "return no partitions for an empty dataset with a partitioned schema" in {
     val schema = PartitionSchema(List(PartitionColumn("date")))
-    VersionedDataset.partitionValues(spark.emptyDataset[Event], schema) shouldBe empty
+    SparkSupport.partitionValues(spark.emptyDataset[Event], schema) shouldBe empty
   }
 
   "Writing a dataset with multiple partitions" should "store the data for each partition in a versioned folder for the partition" in {
@@ -77,7 +77,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
       Partition(PartitionColumn("date"), "2019-01-18") -> version1
     )
 
-    VersionedDataset.writeVersionedPartitions(eventsGroup1.toDS(), table, partitionPathsV1)
+    SparkSupport.writeVersionedPartitions(eventsGroup1.toDS(), table, partitionPathsV1)
 
     readDataset[Event](new URI(versionedPath))
       .collect() should contain theSameElementsAs eventsGroup1
@@ -96,7 +96,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
       Partition(PartitionColumn("date"), "2019-01-18") -> version2
     )
 
-    VersionedDataset.writeVersionedPartitions(eventsGroup2.toDS(), table, partitionPathsV2)
+    SparkSupport.writeVersionedPartitions(eventsGroup2.toDS(), table, partitionPathsV2)
 
     readDataset[Event](new URI(versionedPath))
       .collect() should contain theSameElementsAs eventsGroup2
@@ -105,19 +105,26 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
   "Inserting a snapshot dataset" should "write the data to the versioned location and commit the new version" in {
     val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Orc)
 
-    // Stub metastore
     val initialTableVersion = SnapshotTableVersion(Version.Unversioned)
-
     val stubbedChanges = TableChanges(List(UpdateTableVersion(version1)))
-    implicit val stubMetastore: Metastore[IO] = new StubMetastore(
-      currentVersion = initialTableVersion,
-      computedChanges = stubbedChanges
-    )
 
-    implicit val tableVersions: TableVersions[IO] = (for {
-      t <- InMemoryTableVersions[IO]
-      _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
-    } yield t).unsafeRunSync()
+    val versionContext = {
+      val stubMetastore: Metastore[IO] = new StubMetastore(
+        currentVersion = initialTableVersion,
+        computedChanges = stubbedChanges
+      )
+
+      val tableVersions: TableVersions[IO] = (for {
+        t <- InMemoryTableVersions[IO]
+        _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
+      } yield t).unsafeRunSync()
+
+      VersionContext(tableVersions, stubMetastore, generateVersion)
+    }
+
+    import versionContext._
+    val ss = SparkSupport(versionContext)
+    import ss.syntax._
 
     val users = List(
       User("101", "Alice"),
@@ -156,16 +163,23 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
     val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
 
-    // Stub metastore
-    implicit val stubMetastore: Metastore[IO] = new StubMetastore(
-      currentVersion = initialTableVersion,
-      computedChanges = stubbedChanges
-    )
+    val versionContext = {
+      val stubMetastore: Metastore[IO] = new StubMetastore(
+        currentVersion = initialTableVersion,
+        computedChanges = stubbedChanges
+      )
 
-    implicit val tableVersions: TableVersions[IO] = (for {
-      t <- InMemoryTableVersions[IO]
-      _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
-    } yield t).unsafeRunSync()
+      val tableVersions: TableVersions[IO] = (for {
+        t <- InMemoryTableVersions[IO]
+        _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
+      } yield t).unsafeRunSync()
+
+      VersionContext(tableVersions, stubMetastore, generateVersion)
+    }
+
+    import versionContext._
+    val ss = SparkSupport(versionContext)
+    import ss.syntax._
 
     val events = List(
       Event("101", "A", Date.valueOf("2019-01-15")),
@@ -207,16 +221,23 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
     val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
 
-    // Stub metastore
-    implicit val stubMetastore: Metastore[IO] = new StubMetastore(
-      currentVersion = initialTableVersion,
-      computedChanges = stubbedChanges
-    )
+    val versionContext = {
+      val stubMetastore: Metastore[IO] = new StubMetastore(
+        currentVersion = initialTableVersion,
+        computedChanges = stubbedChanges
+      )
 
-    implicit val tableVersions: TableVersions[IO] = (for {
-      t <- InMemoryTableVersions[IO]
-      _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
-    } yield t).unsafeRunSync()
+      val tableVersions: TableVersions[IO] = (for {
+        t <- InMemoryTableVersions[IO]
+        _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
+      } yield t).unsafeRunSync()
+
+      VersionContext(tableVersions, stubMetastore, generateVersion)
+    }
+
+    import versionContext._
+    val ss = SparkSupport(versionContext)
+    import ss.syntax._
 
     val eventsDay1 = List(
       Event("101", "A", Date.valueOf("2019-01-15")),
@@ -278,7 +299,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
 }
 
-object VersionedDatasetSpec {
+object VersionContextSpec {
 
   case class User(id: String, name: String)
 
