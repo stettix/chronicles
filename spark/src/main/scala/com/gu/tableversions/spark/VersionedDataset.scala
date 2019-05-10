@@ -126,9 +126,10 @@ object VersionedDataset {
 
     val partitions = table.partitionSchema.columns.map(_.name)
 
-    dataset.write
+    dataset.toDF.write
       .partitionBy(partitions: _*)
       .mode(SaveMode.Append)
-      .parquet(VersionedFileSystem.scheme + "://" + table.location.getPath) // TODO: Take in format parameter. Or a dataset writer?
+      .format(table.format.name)
+      .save(VersionedFileSystem.scheme + "://" + table.location.getPath)
   }
 }

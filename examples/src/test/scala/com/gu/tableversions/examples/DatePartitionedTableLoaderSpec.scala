@@ -26,7 +26,8 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
   val table = TableDefinition(
     TableName(schema, "pageview"),
     tableUri,
-    PartitionSchema(List(PartitionColumn("date")))
+    PartitionSchema(List(PartitionColumn("date"))),
+    FileFormat.Parquet
   )
 
   val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (

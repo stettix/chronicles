@@ -59,7 +59,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
     import spark.implicits._
 
     val versionedPath = tableUri.resolve(s"table").toString.replace("file:", "versioned://")
-    val table = TableDefinition(TableName("dev", "test"), tableUri, PartitionSchema(List(PartitionColumn("date"))))
+    val table = TableDefinition(TableName("dev", "test"),
+                                tableUri,
+                                PartitionSchema(List(PartitionColumn("date"))),
+                                FileFormat.Parquet)
 
     val eventsGroup1 = List(
       Event("101", "A", Date.valueOf("2019-01-15")),
@@ -100,7 +103,7 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
   }
 
   "Inserting a snapshot dataset" should "write the data to the versioned location and commit the new version" in {
-    val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
+    val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Orc)
 
     // Stub metastore
     val initialTableVersion = SnapshotTableVersion(Version.Unversioned)
@@ -145,7 +148,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   "Inserting multiple records into the same partition" should "write the correct data to the filesystem" in {
     val eventsTable =
-      TableDefinition(TableName(schema, "events"), tableUri, PartitionSchema(List(PartitionColumn("date"))))
+      TableDefinition(TableName(schema, "events"),
+                      tableUri,
+                      PartitionSchema(List(PartitionColumn("date"))),
+                      FileFormat.Parquet)
 
     val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
     val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
@@ -193,7 +199,10 @@ class VersionedDatasetSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   "Inserting a partitioned dataset" should "write the data to the versioned partitions and commit the new versions" in {
     val eventsTable =
-      TableDefinition(TableName(schema, "events"), tableUri, PartitionSchema(List(PartitionColumn("date"))))
+      TableDefinition(TableName(schema, "events"),
+                      tableUri,
+                      PartitionSchema(List(PartitionColumn("date"))),
+                      FileFormat.Parquet)
 
     val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
     val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)

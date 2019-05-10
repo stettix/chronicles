@@ -32,7 +32,8 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     val table = TableDefinition(
       TableName(schema, "ad_impressions"),
       tableUri,
-      PartitionSchema(List(PartitionColumn("impression_date"), PartitionColumn("processed_date")))
+      PartitionSchema(List(PartitionColumn("impression_date"), PartitionColumn("processed_date"))),
+      FileFormat.Orc
     )
 
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
@@ -41,7 +42,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
                  |  `timestamp` timestamp
                  |)
                  |PARTITIONED BY (`impression_date` date, `processed_date` date)
-                 |STORED AS parquet
+                 |STORED AS orc
                  |LOCATION '${table.location}'
     """.stripMargin
 

@@ -21,7 +21,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
   import SnapshotTableLoaderSpec._
 
-  val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot)
+  val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Parquet)
 
   val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                |  `id` string,

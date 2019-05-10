@@ -90,7 +90,7 @@ final case class TableName(schema: String, name: String) {
   def fullyQualifiedName: String = s"$schema.$name"
 }
 
-final case class TableDefinition(name: TableName, location: URI, partitionSchema: PartitionSchema) {
+final case class TableDefinition(name: TableName, location: URI, partitionSchema: PartitionSchema, format: FileFormat) {
   def isSnapshot: Boolean = partitionSchema == PartitionSchema.snapshot
 }
 
@@ -100,3 +100,10 @@ final case class TableDefinition(name: TableName, location: URI, partitionSchema
 sealed trait TableVersion
 final case class PartitionedTableVersion(partitionVersions: Map[Partition, Version]) extends TableVersion
 final case class SnapshotTableVersion(version: Version) extends TableVersion
+
+case class FileFormat(name: String) extends AnyVal
+
+object FileFormat {
+  val Parquet = FileFormat("parquet")
+  val Orc = FileFormat("orc")
+}

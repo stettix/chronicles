@@ -53,13 +53,16 @@ class GlueMetastoreSpec extends FlatSpec with Matchers with BeforeAndAfterAll wi
 
     val snapshotTable = {
       val tableName = "test_snapshot_" + dedupSuffix
-      TableDefinition(TableName(schema, tableName), tableLocation, PartitionSchema.snapshot)
+      TableDefinition(TableName(schema, tableName), tableLocation, PartitionSchema.snapshot, FileFormat.Parquet)
     }
 
     val partitionedTable = {
       val tableName = "test_partitioned_" + dedupSuffix
 
-      TableDefinition(TableName(schema, tableName), tableLocation, PartitionSchema(List(PartitionColumn("date"))))
+      TableDefinition(TableName(schema, tableName),
+                      tableLocation,
+                      PartitionSchema(List(PartitionColumn("date"))),
+                      FileFormat.Parquet)
     }
 
     "A metastore implementation" should behave like metastoreWithSnapshotSupport(IO {

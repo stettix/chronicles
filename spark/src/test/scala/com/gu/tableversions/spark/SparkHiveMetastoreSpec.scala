@@ -11,11 +11,12 @@ import org.scalatest.{FlatSpec, Matchers}
 class SparkHiveMetastoreSpec extends FlatSpec with Matchers with SparkHiveSuite with MetastoreSpec with PropertyChecks {
 
   val snapshotTable =
-    TableDefinition(TableName(schema, "users"), resolveTablePath("users"), PartitionSchema.snapshot)
+    TableDefinition(TableName(schema, "users"), resolveTablePath("users"), PartitionSchema.snapshot, FileFormat.Parquet)
 
   val partitionedTable = TableDefinition(TableName(schema, "clicks"),
                                          resolveTablePath("clicks"),
-                                         PartitionSchema(List(PartitionColumn("date"))))
+                                         PartitionSchema(List(PartitionColumn("date"))),
+                                         FileFormat.Parquet)
   //
   // Common specs
   //
