@@ -1,6 +1,7 @@
 package com.gu.tableversions.glue
 
 import java.net.URI
+
 import cats.effect.Sync
 import cats.implicits._
 import com.amazonaws.services.glue.AWSGlue
@@ -10,11 +11,12 @@ import com.gu.tableversions.core._
 import com.gu.tableversions.metastore.Metastore.TableOperation
 import com.gu.tableversions.metastore.Metastore.TableOperation._
 import com.gu.tableversions.metastore.{Metastore, VersionPaths}
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.JavaConversions._
 
-class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[F] {
-
+class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[F] with LazyLogging {
+  import GlueMetastore._
   override def currentVersion(table: TableName): F[TableVersion] = {
 
     def getPartitionColumns(glueTable: GlueTable): List[PartitionColumn] =
@@ -73,7 +75,8 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       case UpdateTableVersion(versionNumber)          => updateTableLocation(table, versionNumber)
     }
 
-  def addPartition(table: TableName, partition: Partition, version: Version): F[Unit] = {
+  private[glue] def addPartition(table: TableName, partition: Partition, version: Version): F[Unit] = {
+    logger.info(s"adding partition ${partition.columnValues.toList} for table $table and $version")
 
     def partitionLocation(tableLocation: URI): String = {
       val unversionedLocation: String = partition.resolvePath(tableLocation).toString
@@ -85,9 +88,9 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       glueTable <- getGlueTable(table)
       tableLocation = findTableLocation(glueTable)
       location = partitionLocation(tableLocation)
-      storageDescriptor = new StorageDescriptor().withLocation(location)
+      partitionStorageDescriptor = extractFormatParams(glueTable.getStorageDescriptor).withLocation(location)
       partitionValues = partition.columnValues.map(_.value).toList
-      input = new PartitionInput().withValues(partitionValues).withStorageDescriptor(storageDescriptor)
+      input = new PartitionInput().withValues(partitionValues).withStorageDescriptor(partitionStorageDescriptor)
       addPartitionRequest = new CreatePartitionRequest()
         .withDatabaseName(table.schema)
         .withTableName(table.name)
@@ -96,11 +99,11 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     } yield ()
   }
 
-  private def updatePartitionVersion(table: TableName, partition: Partition, version: Version): F[Unit] = {
+  private[glue] def updatePartitionVersion(table: TableName, partition: Partition, version: Version): F[Unit] = {
+    logger.info(s"updating partition ${partition.columnValues.toList} for table $table and $version")
 
-    def updatePartition(partitionLocation: URI): F[Unit] = {
+    def updatePartition(storageDescriptor: StorageDescriptor): F[Unit] = {
       val partitionValues = partition.columnValues.map(_.value).toList
-      val storageDescriptor = new StorageDescriptor().withLocation(partitionLocation.toString)
       val input = new PartitionInput().withValues(partitionValues).withStorageDescriptor(storageDescriptor)
 
       val updatePartitionRequest = new UpdatePartitionRequest()
@@ -112,18 +115,22 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       F.delay(glue.updatePartition(updatePartitionRequest)).void
     }
 
-    versionedPartitionLocation(table, partition, version).flatMap(location => updatePartition(location).void)
+    versionedPartitionStorageDescriptor(table, partition, version).flatMap(location => updatePartition(location).void)
   }
 
-  private def versionedPartitionLocation(table: TableName, partition: Partition, version: Version): F[URI] =
+  private def versionedPartitionStorageDescriptor(
+      table: TableName,
+      partition: Partition,
+      version: Version): F[StorageDescriptor] =
     for {
       gluetable <- getGlueTable(table)
       tableLocation = findTableLocation(gluetable)
       partitionLocation = partition.resolvePath(tableLocation)
       versionedPartitionLocation = VersionPaths.pathFor(partitionLocation, version)
-    } yield versionedPartitionLocation
+    } yield extractFormatParams(gluetable.getStorageDescriptor).withLocation(versionedPartitionLocation.toString)
 
   def removePartition(table: TableName, partition: Partition): F[Unit] = {
+    logger.info(s"removing partition ${partition.columnValues.toList} for table $table")
     val partitionValues = partition.columnValues.map(_.value).toList
     val deletePartitionRequest = new DeletePartitionRequest()
       .withDatabaseName(table.schema)
@@ -133,13 +140,14 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     F.delay(glue.deletePartition(deletePartitionRequest)).void
   }
 
-  def updateTableLocation(table: TableName, version: Version): F[Unit] = {
+  private[glue] def updateTableLocation(table: TableName, version: Version): F[Unit] = {
+    logger.info(s"updating table location for table $table")
     for {
       glueTable <- getGlueTable(table)
       glueTableLocation = new URI(glueTable.getStorageDescriptor.getLocation)
       basePath = VersionPaths.versionedToBasePath(glueTableLocation)
       versionedPath = VersionPaths.pathFor(basePath, version)
-      storageDescriptor = new StorageDescriptor().withLocation(versionedPath.toString)
+      storageDescriptor = extractFormatParams(glueTable.getStorageDescriptor).withLocation(versionedPath.toString)
       tableInput = new TableInput().withName(table.name).withStorageDescriptor(storageDescriptor)
       updateRequest = new UpdateTableRequest().withDatabaseName(table.schema).withTableInput(tableInput)
       res <- F.delay(glue.updateTable(updateRequest))
@@ -159,5 +167,20 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
   private[glue] def findTableLocation(glueTable: GlueTable) = {
     val location = glueTable.getStorageDescriptor.getLocation
     new URI(location)
+  }
+
+}
+
+object GlueMetastore {
+
+  def extractFormatParams(source: StorageDescriptor): StorageDescriptor = {
+    val maybeSerdeInfo = Option(source.getSerdeInfo).map { serdeInfo =>
+      new SerDeInfo().withSerializationLibrary(serdeInfo.getSerializationLibrary)
+    }
+
+    new StorageDescriptor()
+      .withSerdeInfo(maybeSerdeInfo.getOrElse(null))
+      .withInputFormat(source.getInputFormat)
+      .withOutputFormat(source.getOutputFormat)
   }
 }
