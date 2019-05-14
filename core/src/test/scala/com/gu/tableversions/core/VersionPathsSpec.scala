@@ -1,9 +1,7 @@
-package com.gu.tableversions.metastore
+package com.gu.tableversions.core
 
 import java.net.URI
 
-import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core.{Partition, Version}
 import org.scalatest.{FlatSpec, Matchers}
 
 class VersionPathsSpec extends FlatSpec with Matchers {

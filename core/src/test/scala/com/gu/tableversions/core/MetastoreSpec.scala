@@ -1,10 +1,9 @@
-package com.gu.tableversions.metastore
+package com.gu.tableversions.core
 
 import cats.effect.IO
+import com.gu.tableversions.core.Metastore.TableChanges
+import com.gu.tableversions.core.Metastore.TableOperation._
 import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore.TableChanges
-import com.gu.tableversions.metastore.Metastore.TableOperation._
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

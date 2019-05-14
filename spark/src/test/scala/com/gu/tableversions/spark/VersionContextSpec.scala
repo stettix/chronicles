@@ -8,10 +8,8 @@ import cats.effect.IO
 import com.gu.tableversions.core.Partition.PartitionColumn
 import com.gu.tableversions.core.TableVersions._
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore
-import com.gu.tableversions.metastore.Metastore.TableChanges
-import com.gu.tableversions.metastore.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
-import com.gu.tableversions.spark.VersionContext._
+import com.gu.tableversions.core.Metastore.TableChanges
+import com.gu.tableversions.core.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
 import com.gu.tableversions.spark.VersionContextSpec.{Event, User}
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import org.apache.spark.sql.Dataset
@@ -119,7 +117,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(tableVersions, stubMetastore, generateVersion)
+      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -145,7 +143,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableVersion shouldBe SnapshotTableVersion(version1)
     metastoreChanges shouldBe stubbedChanges
 
-    val tableUpdates = tableVersions.updates(usersTable.name).unsafeRunSync()
+    val tableUpdates = metastore.updates(usersTable.name).unsafeRunSync()
     tableUpdates should have size 2
     val tableUpdate = tableUpdates.head
     tableUpdate.message shouldBe UpdateMessage("Test insert users into table")
@@ -174,7 +172,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(tableVersions, stubMetastore, generateVersion)
+      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -204,7 +202,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableVersion shouldBe PartitionedTableVersion(expectedPartitionVersions)
     metastoreChanges shouldBe stubbedChanges
 
-    val tableUpdates = tableVersions.updates(eventsTable.name).unsafeRunSync()
+    val tableUpdates = metastore.updates(eventsTable.name).unsafeRunSync()
     tableUpdates should have size 2
     val tableUpdate = tableUpdates.head
     tableUpdate.message shouldBe UpdateMessage("Test insert events into table")
@@ -232,7 +230,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(tableVersions, stubMetastore, generateVersion)
+      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -271,7 +269,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableVersion shouldBe PartitionedTableVersion(expectedPartitionVersions)
     metastoreChanges shouldBe stubbedChanges
 
-    val tableUpdates = tableVersions.updates(eventsTable.name).unsafeRunSync()
+    val tableUpdates = metastore.updates(eventsTable.name).unsafeRunSync()
     tableUpdates should have size 2
     val tableUpdate = tableUpdates.head
     tableUpdate.message shouldBe UpdateMessage("Test insert events into table")

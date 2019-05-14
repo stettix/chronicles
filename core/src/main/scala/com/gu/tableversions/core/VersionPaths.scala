@@ -1,10 +1,8 @@
-package com.gu.tableversions.metastore
+package com.gu.tableversions.core
 
 import java.io.File
 import java.net.URI
-import cats.implicits._
-
-import com.gu.tableversions.core.{Partition, Version}
+import cats.syntax.either._
 
 /**
   * Encodes the mapping between version numbers and storage paths.
@@ -24,7 +22,6 @@ object VersionPaths {
     }
 
   /**
-    *
     * @return the corresponding version to the provided location
     */
   def parseVersion(location: URI): Version = {
@@ -38,7 +35,6 @@ object VersionPaths {
   }
 
   /**
-    *
     * @return the provided location with the version part removed (if present)
     */
   def versionedToBasePath(location: URI): URI = {

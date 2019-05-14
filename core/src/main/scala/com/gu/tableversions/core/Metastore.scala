@@ -1,9 +1,7 @@
-package com.gu.tableversions.metastore
+package com.gu.tableversions.core
 
-import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
-import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore.TableChanges
-import com.gu.tableversions.metastore.Metastore.TableOperation._
+import com.gu.tableversions.core.Metastore.TableChanges
+import com.gu.tableversions.core.Metastore.TableOperation._
 
 /**
   * Defines the API for manipulating and querying a Metastore for versioned tables.

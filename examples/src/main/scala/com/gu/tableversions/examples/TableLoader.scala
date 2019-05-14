@@ -2,8 +2,8 @@ package com.gu.tableversions.examples
 
 import java.time.Instant
 
+import com.gu.tableversions.core.TableDefinition
 import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
-import com.gu.tableversions.core.{TableDefinition, TableVersions}
 import com.gu.tableversions.spark.{SparkSupport, VersionContext}
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.spark.sql.{Dataset, SparkSession}
@@ -21,7 +21,7 @@ class TableLoader[T <: Product: TypeTag](
     extends LazyLogging {
 
   import spark.implicits._
-  import versionContext._
+
   val ss = SparkSupport(versionContext)
   import ss.syntax._
 
@@ -30,7 +30,7 @@ class TableLoader[T <: Product: TypeTag](
     spark.sql(createTableDdl)
 
     // Initialise version tracking for table
-    tableVersions.init(table.name, isSnapshot, userId, message, Instant.now()).unsafeRunSync()
+    versionContext.metastore.init(table.name, isSnapshot, userId, message, Instant.now()).unsafeRunSync()
   }
 
   def data(): Dataset[T] =
@@ -43,15 +43,4 @@ class TableLoader[T <: Product: TypeTag](
     logger.info(s"Applied the the following changes to sync the Metastore:\n$metastoreChanges")
   }
 
-  def checkout(id: TableVersions.CommitId): Unit = {
-    val checkout = for {
-      _ <- tableVersions.setCurrentVersion(table.name, id)
-      newVersion <- tableVersions.currentVersion(table.name)
-      currentMetastoreVersion <- metastore.currentVersion(table.name)
-      changes = metastore.computeChanges(currentMetastoreVersion, newVersion)
-      _ <- metastore.update(table.name, changes)
-    } yield ()
-
-    checkout.unsafeRunSync()
-  }
 }

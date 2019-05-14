@@ -34,7 +34,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     import spark.implicits._
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
-    import versionContext.tableVersions
+    import versionContext.metastore
 
     val userId = UserId("test user")
 
@@ -75,15 +75,15 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     updatedVersionDirs should contain allElementsOf initialTableVersionDirs
 
     // Get version history
-    val versionHistory = tableVersions.updates(table.name).unsafeRunSync()
+    val versionHistory = metastore.updates(table.name).unsafeRunSync()
     versionHistory.size shouldBe 3 // One initial version plus two written versions
 
     // Roll back to previous version
-    loader.checkout(versionHistory.drop(1).head.id)
+    metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs identitiesDay1
 
     // Roll forward to latest
-    loader.checkout(versionHistory.head.id)
+    metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs identitiesDay2
   }
 

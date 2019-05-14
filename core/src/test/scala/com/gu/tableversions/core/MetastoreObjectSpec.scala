@@ -1,8 +1,7 @@
-package com.gu.tableversions.metastore
+package com.gu.tableversions.core
 
 import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core.{Partition, PartitionedTableVersion, SnapshotTableVersion, TableVersion, Version}
-import com.gu.tableversions.metastore.Metastore.TableOperation._
+import com.gu.tableversions.core.Metastore.TableOperation._
 import org.scalatest.{FlatSpec, Matchers}
 
 class MetastoreObjectSpec extends FlatSpec with Matchers {

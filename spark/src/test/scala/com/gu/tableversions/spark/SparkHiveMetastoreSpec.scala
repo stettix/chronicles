@@ -4,7 +4,6 @@ import cats.effect.IO
 import cats.syntax.functor._
 import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.MetastoreSpec
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 

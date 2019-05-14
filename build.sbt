@@ -34,7 +34,6 @@ lazy val assemblySettings = Seq(
 
 lazy val root = (project in file("."))
   .aggregate(`table-versions-core`,
-             `table-versions-metastore`,
              `table-versions-spark`,
              `table-versions-glue`,
              `table-versions-cli`,
@@ -47,15 +46,10 @@ lazy val `table-versions-core` = project
   .settings(commonSettings)
   .settings(libraryDependencies ++= catsDependencies)
 
-lazy val `table-versions-metastore` = project
-  .in(file("metastore"))
-  .settings(commonSettings)
-  .dependsOn(`table-versions-core`)
-
 lazy val `table-versions-cli` = project
   .in(file("cli"))
   .settings(commonSettings)
-  .dependsOn(`table-versions-core`, `table-versions-metastore`)
+  .dependsOn(`table-versions-core`)
 
 lazy val `table-versions-spark` = project
   .in(file("spark"))
@@ -70,7 +64,7 @@ lazy val `table-versions-spark` = project
   ) ++ sparkDependencies)
   .settings(parallelExecution in Test := false)
   .settings(fork in Test := true)
-  .dependsOn(`table-versions-core`, `table-versions-metastore` % "compile->compile;test->test")
+  .dependsOn(`table-versions-core` % "compile->compile;test->test")
 
 lazy val `table-versions-glue` = project
   .in(file("glue"))
@@ -84,7 +78,7 @@ lazy val `table-versions-glue` = project
     scalatest % IntegrationTest
   ))
   .settings(parallelExecution in Test := false)
-  .dependsOn(`table-versions-core`, `table-versions-metastore` % "compile->compile;test->test;it->test")
+  .dependsOn(`table-versions-core` % "compile->compile;test->test;it->test")
 
 lazy val `table-versions-examples` = project
   .in(file("examples"))
@@ -94,4 +88,4 @@ lazy val `table-versions-examples` = project
   )
   .settings(parallelExecution in Test := false)
   .settings(fork in Test := true)
-  .dependsOn(`table-versions-core`, `table-versions-metastore`, `table-versions-spark` % "compile->compile;test->test")
+  .dependsOn(`table-versions-core`, `table-versions-spark` % "compile->compile;test->test")

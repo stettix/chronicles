@@ -6,27 +6,17 @@ import cats.effect.IO
 import cats.implicits._
 import com.amazonaws.auth._
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
-import com.amazonaws.services.glue.model.{
-  Column,
-  CreateTableRequest,
-  DeleteTableRequest,
-  GetPartitionsRequest,
-  GetTableRequest,
-  SerDeInfo,
-  StorageDescriptor,
-  TableInput
-}
+import com.amazonaws.services.glue.model._
 import com.amazonaws.services.glue.{AWSGlue, AWSGlueClient}
 import com.gu.tableversions.core.Partition.PartitionColumn
-import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.MetastoreSpec
-import org.scalatest.{Assertion, BeforeAndAfterAll, FlatSpec, Matchers}
+import com.gu.tableversions.core.{MetastoreSpec, _}
+import org.scalatest.{Assertion, FlatSpec, Matchers}
 
 import scala.util.{Properties, Random}
 
-class GlueMetastoreSpec extends FlatSpec with Matchers with MetastoreSpec {
+class GlueMetastoreIntegrationSpec extends FlatSpec with Matchers with MetastoreSpec {
 
-  def readMandatoryEnvVariable(varName: String) =
+  def readMandatoryEnvVariable(varName: String): Either[String, String] =
     Properties.envOrNone(varName).toRight(s"$varName environment variable must be set")
 
   val AWSProfileEnvVarName = "TABLE_VERSIONS_TEST_AWS_PROFILE"
@@ -181,7 +171,6 @@ class GlueMetastoreSpec extends FlatSpec with Matchers with MetastoreSpec {
     }
 
     "updating a table location" should "preserve format parameters" in {
-      import scala.collection.JavaConverters._
 
       val scenario = for {
         _ <- initTable(snapshotTable)

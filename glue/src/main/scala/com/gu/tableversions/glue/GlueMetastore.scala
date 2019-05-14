@@ -8,9 +8,9 @@ import com.amazonaws.services.glue.AWSGlue
 import com.amazonaws.services.glue.model.{Partition => GluePartition, Table => GlueTable, TableVersion => _, _}
 import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore.TableOperation
-import com.gu.tableversions.metastore.Metastore.TableOperation._
-import com.gu.tableversions.metastore.{Metastore, VersionPaths}
+import com.gu.tableversions.core.Metastore.TableOperation
+import com.gu.tableversions.core.Metastore.TableOperation._
+import com.gu.tableversions.core.{Metastore, VersionPaths}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.JavaConversions._
@@ -150,7 +150,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       storageDescriptor = extractFormatParams(glueTable.getStorageDescriptor).withLocation(versionedPath.toString)
       tableInput = new TableInput().withName(table.name).withStorageDescriptor(storageDescriptor)
       updateRequest = new UpdateTableRequest().withDatabaseName(table.schema).withTableInput(tableInput)
-      res <- F.delay(glue.updateTable(updateRequest))
+      _ <- F.delay(glue.updateTable(updateRequest))
     } yield ()
   }
 
@@ -159,12 +159,14 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     val getPartitionsResult: GetPartitionsResult = glue.getPartitions(req)
     getPartitionsResult.getPartitions.toList
   }
+
   private[glue] def getGlueTable(table: TableName): F[GlueTable] = F.delay {
     val getTableRequest = new GetTableRequest().withDatabaseName(table.schema).withName(table.name)
     val getTableResponse = glue.getTable(getTableRequest)
     getTableResponse.getTable
   }
-  private[glue] def findTableLocation(glueTable: GlueTable) = {
+
+  private[glue] def findTableLocation(glueTable: GlueTable): URI = {
     val location = glueTable.getStorageDescriptor.getLocation
     new URI(location)
   }
@@ -179,7 +181,7 @@ object GlueMetastore {
     }
 
     new StorageDescriptor()
-      .withSerdeInfo(maybeSerdeInfo.getOrElse(null))
+      .withSerdeInfo(maybeSerdeInfo.orNull)
       .withInputFormat(source.getInputFormat)
       .withOutputFormat(source.getOutputFormat)
   }

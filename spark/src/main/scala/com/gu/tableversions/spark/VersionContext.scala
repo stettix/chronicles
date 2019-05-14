@@ -4,11 +4,10 @@ import java.time.Instant
 
 import cats.effect.IO
 import cats.implicits._
-import com.gu.tableversions.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion}
-import com.gu.tableversions.core.TableVersions.{TableOperation, TableUpdate, UpdateMessage, UserId}
+import com.gu.tableversions.core.Metastore.TableChanges
+import com.gu.tableversions.core.TableVersions.TableOperation._
+import com.gu.tableversions.core.TableVersions._
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore.TableChanges
-import com.gu.tableversions.metastore.{Metastore, VersionPaths}
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
 import org.apache.spark.sql.{Dataset, Row, SaveMode}
@@ -18,8 +17,7 @@ import org.apache.spark.sql.{Dataset, Row, SaveMode}
   * using the appropriate paths for storage, and committing version changes.
   */
 final case class VersionContext(
-    tableVersions: TableVersions[IO],
-    metastore: Metastore[IO],
+    metastore: VersionedMetastore[IO],
     generateVersion: IO[Version]
 )
 
@@ -78,25 +76,15 @@ object SparkSupport {
     }
 
     for {
-      // Get next version to use for all partitions
       newVersion <- generateVersion
 
+      // Write the data
       operations <- if (table.isSnapshot) writeSnapshotDataset(newVersion) else writePartitionedDataset(newVersion)
 
-      // Commit written version
-      _ <- tableVersions.commit(table.name, TableUpdate(userId, UpdateMessage(message), Instant.now(), operations))
+      // Commit version change and update metastore
+      result <- metastore.commit(table.name, TableUpdate(userId, UpdateMessage(message), Instant.now(), operations))
 
-      // Get latest version details and Metastore table details and sync the Metastore to match,
-      // effectively switching the table to the new version.
-      latestTableVersion <- tableVersions.currentVersion(table.name)
-
-      metastoreVersion <- metastore.currentVersion(table.name)
-      metastoreUpdate = metastore.computeChanges(metastoreVersion, latestTableVersion)
-
-      // Sync Metastore to match
-      _ <- metastore.update(table.name, metastoreUpdate)
-
-    } yield (latestTableVersion, metastoreUpdate)
+    } yield result
   }
 
   /**

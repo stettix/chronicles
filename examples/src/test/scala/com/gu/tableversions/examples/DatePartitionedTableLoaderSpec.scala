@@ -43,13 +43,13 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     import spark.implicits._
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
-    import versionContext.tableVersions
+    import versionContext.metastore
 
     val loader = new TableLoader[Pageview](versionContext, table, ddl, isSnapshot = false)
 
     val userId = UserId("test user")
     loader.initTable(userId, UpdateMessage("init"))
-    tableVersions.updates(table.name).unsafeRunSync() should have size 1
+    metastore.updates(table.name).unsafeRunSync() should have size 1
 
     val pageviewsDay1 = List(
       Pageview("user-1", "news/politics", Timestamp.valueOf("2019-03-13 00:20:00")),
@@ -62,7 +62,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
     loader.data().collect() should contain theSameElementsAs pageviewsDay1
 
-    tableVersions.updates(table.name).unsafeRunSync() should have size 2
+    metastore.updates(table.name).unsafeRunSync() should have size 2
 
     val pageviewsDay2 = List(
       Pageview("user-2", "news/politics", Timestamp.valueOf("2019-03-14 13:00:00")),
@@ -72,7 +72,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
     loader.insert(pageviewsDay2.toDS(), userId, "Day 2 initial commit")
     loader.data().collect() should contain theSameElementsAs pageviewsDay1 ++ pageviewsDay2
-    tableVersions.updates(table.name).unsafeRunSync() should have size 3
+    metastore.updates(table.name).unsafeRunSync() should have size 3
 
     val pageviewsDay3 = List(
       Pageview("user-1", "news/politics", Timestamp.valueOf("2019-03-15 00:20:00")),
@@ -82,7 +82,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
     loader.insert(pageviewsDay3.toDS(), userId, "Day 3 initial commit")
     loader.data().collect() should contain theSameElementsAs pageviewsDay1 ++ pageviewsDay2 ++ pageviewsDay3
-    tableVersions.updates(table.name).unsafeRunSync() should have size 4
+    metastore.updates(table.name).unsafeRunSync() should have size 4
 
     // Check that data was written to the right partitions
     loader
@@ -123,17 +123,17 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     versionDirs(tableUri, "date=2019-03-15") should contain theSameElementsAs versionDirsFor15th
 
     // Roll back to a previous version and check see the data of the old version
-    val versionHistory = tableVersions.updates(table.name).unsafeRunSync()
+    val versionHistory = metastore.updates(table.name).unsafeRunSync()
     val previousVersion = versionHistory.drop(1).head
-    loader.checkout(previousVersion.id)
+    metastore.checkout(table.name, previousVersion.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs pageviewsDay1 ++ pageviewsDay2 ++ pageviewsDay3
 
     // Roll back to an even earlier version
-    loader.checkout(versionHistory.takeRight(2).head.id)
+    metastore.checkout(table.name, versionHistory.takeRight(2).head.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs pageviewsDay1
 
     // Roll back to the table as it looked after init, before any partitions were added.
-    loader.checkout(versionHistory.last.id)
+    metastore.checkout(table.name, versionHistory.last.id).unsafeRunSync()
     loader.data().collect() shouldBe empty
 
     // Write some new data to the table

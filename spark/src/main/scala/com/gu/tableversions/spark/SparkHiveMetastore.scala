@@ -5,9 +5,8 @@ import java.net.URI
 import cats.effect.Sync
 import cats.implicits._
 import com.gu.tableversions.core._
-import com.gu.tableversions.metastore.Metastore.TableOperation
-import com.gu.tableversions.metastore.Metastore.TableOperation._
-import com.gu.tableversions.metastore.{Metastore, VersionPaths}
+import com.gu.tableversions.core.Metastore.TableOperation
+import com.gu.tableversions.core.Metastore.TableOperation._
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.spark.sql.SparkSession
 
