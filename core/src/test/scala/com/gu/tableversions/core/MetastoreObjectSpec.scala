@@ -1,13 +1,14 @@
 package com.gu.tableversions.core
 
+import cats.effect.IO
 import com.gu.tableversions.core.Partition.PartitionColumn
 import com.gu.tableversions.core.Metastore.TableOperation._
 import org.scalatest.{FlatSpec, Matchers}
 
 class MetastoreObjectSpec extends FlatSpec with Matchers {
-  val version1 = Version.generateVersion.unsafeRunSync()
-  val version2 = Version.generateVersion.unsafeRunSync()
-  val version3 = Version.generateVersion.unsafeRunSync()
+  val version1 = Version.generateVersion[IO].unsafeRunSync()
+  val version2 = Version.generateVersion[IO].unsafeRunSync()
+  val version3 = Version.generateVersion[IO].unsafeRunSync()
 
   val date = PartitionColumn("date")
 

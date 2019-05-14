@@ -2,7 +2,7 @@ package com.gu.tableversions.spark
 
 import java.time.Instant
 
-import cats.effect.IO
+import cats.effect.{Effect, Sync}
 import cats.implicits._
 import com.gu.tableversions.core.Metastore.TableChanges
 import com.gu.tableversions.core.TableVersions.TableOperation._
@@ -16,12 +16,12 @@ import org.apache.spark.sql.{Dataset, Row, SaveMode}
   * Code for writing Spark datasets to storage in a version-aware manner, taking in version information,
   * using the appropriate paths for storage, and committing version changes.
   */
-final case class VersionContext(
-    metastore: VersionedMetastore[IO],
-    generateVersion: IO[Version]
+final case class VersionContext[F[_]](
+    metastore: VersionedMetastore[F],
+    generateVersion: F[Version]
 )
 
-final case class SparkSupport(versionContext: VersionContext) {
+final case class SparkSupport[F[_]](versionContext: VersionContext[F])(implicit F: Effect[F]) {
 
   object syntax {
 
@@ -37,7 +37,8 @@ final case class SparkSupport(versionContext: VersionContext) {
         *         to the metastore.
         */
       def versionedInsertInto(table: TableDefinition, userId: UserId, message: String): (TableVersion, TableChanges) =
-        SparkSupport.versionedInsertDatasetIntoTable(versionContext, delegate, table, userId, message).unsafeRunSync()
+        F.toIO(SparkSupport.versionedInsertDatasetIntoTable(versionContext, delegate, table, userId, message))
+          .unsafeRunSync()
     }
   }
 }
@@ -48,31 +49,31 @@ object SparkSupport {
     * Keep default (public) scope. It was `private` before and failed at Runtime (yet compiled...).
     * Have not tried with other scopes.
     */
-  def versionedInsertDatasetIntoTable[T](
-      versionContext: VersionContext,
+  def versionedInsertDatasetIntoTable[T, F[_]](
+      versionContext: VersionContext[F],
       dataset: Dataset[T],
       table: TableDefinition,
       userId: UserId,
-      message: String): IO[(TableVersion, TableChanges)] = {
+      message: String)(implicit F: Sync[F]): F[(TableVersion, TableChanges)] = {
 
     import versionContext._
 
-    def writePartitionedDataset(version: Version): IO[List[TableOperation]] =
+    def writePartitionedDataset(version: Version): F[List[TableOperation]] =
       for {
         // Find the partition values in the given dataset
-        datasetPartitions <- IO(partitionValues(dataset, table.partitionSchema))
+        datasetPartitions <- F.delay(partitionValues(dataset, table.partitionSchema))
 
         // Use the same version for each of the partitions we'll be writing
         partitionVersions = datasetPartitions.map(p => p -> version).toMap
 
         // Write Spark dataset to the versioned path
-        _ <- IO(writeVersionedPartitions(dataset, table, partitionVersions))
+        _ <- F.delay(writeVersionedPartitions(dataset, table, partitionVersions))
 
       } yield datasetPartitions.map(partition => AddPartitionVersion(partition, version))
 
-    def writeSnapshotDataset(version: Version): IO[List[TableOperation]] = {
+    def writeSnapshotDataset(version: Version): F[List[TableOperation]] = {
       val path = VersionPaths.pathFor(table.location, version)
-      IO(dataset.write.parquet(path.toString)).as(List(AddTableVersion(version)))
+      F.delay(dataset.write.parquet(path.toString)).as(List(AddTableVersion(version)))
     }
 
     for {

@@ -3,6 +3,7 @@ package com.gu.tableversions.core
 import java.time.{Instant, LocalDateTime, ZoneId}
 import java.util.UUID
 
+import cats.effect.IO
 import cats.implicits._
 import org.scalacheck.Gen
 import org.scalatest.prop.PropertyChecks
@@ -11,12 +12,12 @@ import org.scalatest.{EitherValues, FlatSpec, Matchers}
 class VersionSpec extends FlatSpec with Matchers with EitherValues with PropertyChecks {
 
   "Generating versions" should "produce valid labels" in {
-    val version = Version.generateVersion.unsafeRunSync()
+    val version = Version.generateVersion[IO].unsafeRunSync()
     version.label should fullyMatch regex Version.TimestampAndUuidRegex
   }
 
   it should "produce unique labels" in {
-    val versions = (1 to 100).map(_ => Version.generateVersion).toList.sequence.unsafeRunSync()
+    val versions = (1 to 100).map(_ => Version.generateVersion[IO]).toList.sequence.unsafeRunSync()
     versions.distinct.size shouldBe versions.size
   }
 
@@ -46,7 +47,7 @@ class VersionSpec extends FlatSpec with Matchers with EitherValues with Property
   }
 
   it should "get the same Version back after rendering and parsing it" in {
-    val genVersion = Gen.delay(Version.generateVersion.unsafeRunSync())
+    val genVersion = Gen.delay(Version.generateVersion[IO].unsafeRunSync())
     forAll(genVersion) { version =>
       Version.parse(version.label) shouldBe Right(version)
     }

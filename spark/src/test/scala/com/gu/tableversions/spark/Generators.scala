@@ -1,6 +1,7 @@
 package com.gu.tableversions.spark
 
 import cats.data.NonEmptyList
+import cats.effect.IO
 import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
 import com.gu.tableversions.core.{Partition, Version}
 import com.gu.tableversions.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
@@ -17,7 +18,7 @@ trait Generators {
     Partition(NonEmptyList.fromListUnsafe(columnValues))
   }
 
-  val versionGen: Gen[Version] = Version.generateVersion.unsafeRunSync()
+  val versionGen: Gen[Version] = Version.generateVersion[IO].unsafeRunSync()
 
   val partitionVersionGen: Gen[(Partition, Version)] = partitionGen.flatMap(p => versionGen.map(v => p -> v))
 

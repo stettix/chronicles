@@ -1,10 +1,10 @@
 package com.gu.tableversions.core
 
-import java.time.{Instant, LocalDateTime, ZoneId}
 import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDateTime, ZoneId}
 import java.util.UUID
 
-import cats.effect.IO
+import cats.effect.Sync
 import cats.syntax.either._
 
 import scala.util.Try
@@ -30,7 +30,7 @@ object Version {
   val Unversioned = Version(Instant.MIN, new UUID(0L, 0L))
 
   /** Generator for versions using a timestamp + UUID format */
-  val generateVersion: IO[Version] = IO { Version(Instant.now(), UUID.randomUUID()) }
+  def generateVersion[F[_]](implicit F: Sync[F]): F[Version] = F.delay { Version(Instant.now(), UUID.randomUUID()) }
 
   /** Regex that can be used to recognise a valid format string. */
   val TimestampAndUuidRegex = """(\d{8}-\d{6}.\d{9})-(.*)""".r

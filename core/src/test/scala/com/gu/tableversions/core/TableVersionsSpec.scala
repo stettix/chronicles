@@ -19,9 +19,9 @@ import scala.util.Random
 trait TableVersionsSpec {
   this: FlatSpec with Matchers =>
 
-  val version1 = Version.generateVersion.unsafeRunSync()
-  val version2 = Version.generateVersion.unsafeRunSync()
-  val version3 = Version.generateVersion.unsafeRunSync()
+  val version1 = Version.generateVersion[IO].unsafeRunSync()
+  val version2 = Version.generateVersion[IO].unsafeRunSync()
+  val version3 = Version.generateVersion[IO].unsafeRunSync()
 
   def tableVersionsBehaviour(emptyTableVersions: IO[TableVersions[IO]]): Unit = {
 
@@ -382,7 +382,7 @@ trait TableVersionsSpec {
         _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
         // Generate some updates
-        indexedVersions <- (1 to 100).map(n => Version.generateVersion.map(v => n -> v)).toList.sequence
+        indexedVersions <- (1 to 100).map(n => Version.generateVersion[IO].map(v => n -> v)).toList.sequence
         initialUpdates = indexedVersions.map {
           case (n, version) =>
             TableUpdate(userId, UpdateMessage(s"Commit number $n"), timestamp(n.toLong), List(AddTableVersion(version)))

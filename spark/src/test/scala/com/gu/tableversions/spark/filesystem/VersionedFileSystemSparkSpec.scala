@@ -1,5 +1,6 @@
 package com.gu.tableversions.spark.filesystem
 
+import cats.effect.IO
 import com.gu.tableversions.core.Partition.{ColumnValue, PartitionColumn}
 import com.gu.tableversions.core.{Partition, Version}
 import com.gu.tableversions.spark.SparkHiveSuite
@@ -14,7 +15,7 @@ class VersionedFileSystemSparkSpec extends FlatSpec with Matchers with SparkHive
   "VersionedFileSystem" should "write partitions with a version suffix" in {
     import spark.implicits._
 
-    val version = Version.generateVersion.unsafeRunSync()
+    val version = Version.generateVersion[IO].unsafeRunSync()
 
     val vfsConfig = VersionedFileSystemConfig(
       Map(

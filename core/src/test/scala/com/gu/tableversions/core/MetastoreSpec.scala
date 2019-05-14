@@ -27,12 +27,12 @@ trait MetastoreSpec {
 
         initialVersion <- metastore.currentVersion(table)
 
-        version1 <- Version.generateVersion
+        version1 <- Version.generateVersion[IO]
         _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(version1))))
 
         firstUpdatedVersion <- metastore.currentVersion(table)
 
-        version2 <- Version.generateVersion
+        version2 <- Version.generateVersion[IO]
         _ <- metastore.update(table, TableChanges(List(UpdateTableVersion(version2))))
 
         secondUpdatedVersion <- metastore.currentVersion(table)
@@ -70,7 +70,7 @@ trait MetastoreSpec {
 
         initialVersion <- metastore.currentVersion(table)
 
-        version1 <- Version.generateVersion
+        version1 <- Version.generateVersion[IO]
 
         _ <- metastore.update(
           table,
@@ -85,7 +85,7 @@ trait MetastoreSpec {
 
         versionAfterFirstUpdate <- metastore.currentVersion(table)
 
-        version2 <- Version.generateVersion
+        version2 <- Version.generateVersion[IO]
         _ <- metastore.update(
           table,
           TableChanges(
@@ -170,7 +170,7 @@ trait MetastoreSpec {
         metastore <- emptyMetastore
         _ <- initUnderlyingTable
         initialVersion <- metastore.currentVersion(table)
-        version <- Version.generateVersion
+        version <- Version.generateVersion[IO]
         updateResultAsEither <- metastore
           .update(
             table,

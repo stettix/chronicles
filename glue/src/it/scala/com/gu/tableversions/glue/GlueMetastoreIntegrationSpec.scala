@@ -6,7 +6,16 @@ import cats.effect.IO
 import cats.implicits._
 import com.amazonaws.auth._
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
-import com.amazonaws.services.glue.model._
+import com.amazonaws.services.glue.model.{
+  Column,
+  CreateTableRequest,
+  DeleteTableRequest,
+  GetPartitionsRequest,
+  GetTableRequest,
+  SerDeInfo,
+  StorageDescriptor,
+  TableInput
+}
 import com.amazonaws.services.glue.{AWSGlue, AWSGlueClient}
 import com.gu.tableversions.core.Partition.PartitionColumn
 import com.gu.tableversions.core.{MetastoreSpec, _}
@@ -122,7 +131,7 @@ class GlueMetastoreIntegrationSpec extends FlatSpec with Matchers with Metastore
         metastore = new GlueMetastore[IO](glue)
         dateCol = PartitionColumn("date")
         partition = Partition(dateCol, "2019-01-01")
-        version <- Version.generateVersion
+        version <- Version.generateVersion[IO]
         _ <- metastore.addPartition(partitionedTable.name, partition, version)
         req = new GetPartitionsRequest()
           .withTableName(partitionedTable.name.name)
@@ -149,8 +158,8 @@ class GlueMetastoreIntegrationSpec extends FlatSpec with Matchers with Metastore
         getPartitionsReq = new GetPartitionsRequest()
           .withTableName(partitionedTable.name.name)
           .withDatabaseName(partitionedTable.name.schema)
-        version1 <- Version.generateVersion
-        version2 <- Version.generateVersion
+        version1 <- Version.generateVersion[IO]
+        version2 <- Version.generateVersion[IO]
         _ <- metastore.addPartition(partitionedTable.name, partition, version1)
         partitionsBeforeUpdate = glue.getPartitions(getPartitionsReq).getPartitions.asScala
         _ <- metastore.updatePartitionVersion(partitionedTable.name, partition, version2)
@@ -175,7 +184,7 @@ class GlueMetastoreIntegrationSpec extends FlatSpec with Matchers with Metastore
       val scenario = for {
         _ <- initTable(snapshotTable)
         metastore = new GlueMetastore[IO](glue)
-        version <- Version.generateVersion
+        version <- Version.generateVersion[IO]
         _ <- metastore.updateTableLocation(snapshotTable.name, version)
         getTableReq = new GetTableRequest()
           .withName(snapshotTable.name.name)

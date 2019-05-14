@@ -1,5 +1,6 @@
 package com.gu.tableversions.spark.filesystem
 
+import cats.effect.IO
 import cats.implicits._
 import com.gu.tableversions.core.{Partition, Version}
 import org.apache.hadoop.fs.Path
@@ -9,9 +10,9 @@ import org.scalatest.{FreeSpec, Matchers}
 class VersionedPathMapperSpec extends FreeSpec with Matchers with TableDrivenPropertyChecks {
 
   "VersionedPathMapper" - {
-    val v1 = Version.generateVersion.unsafeRunSync()
-    val v2 = Version.generateVersion.unsafeRunSync()
-    val v3 = Version.generateVersion.unsafeRunSync()
+    val v1 = Version.generateVersion[IO].unsafeRunSync()
+    val v2 = Version.generateVersion[IO].unsafeRunSync()
+    val v3 = Version.generateVersion[IO].unsafeRunSync()
 
     val partitionVersions: Map[Partition, Version] = Map(
       partition("date=2019-01-01") -> v1,

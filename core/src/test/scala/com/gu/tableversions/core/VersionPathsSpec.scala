@@ -2,11 +2,12 @@ package com.gu.tableversions.core
 
 import java.net.URI
 
+import cats.effect.IO
 import org.scalatest.{FlatSpec, Matchers}
 
 class VersionPathsSpec extends FlatSpec with Matchers {
 
-  val version = Version.generateVersion.unsafeRunSync()
+  val version = Version.generateVersion[IO].unsafeRunSync()
 
   "Resolving path with a version" should "have the version string appended as a folder" in {
     VersionPaths.pathFor(new URI("s3://foo/bar/"), version) shouldBe new URI(s"s3://foo/bar/${version.label}")

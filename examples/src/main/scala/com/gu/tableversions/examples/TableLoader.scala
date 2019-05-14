@@ -2,6 +2,7 @@ package com.gu.tableversions.examples
 
 import java.time.Instant
 
+import cats.effect.IO
 import com.gu.tableversions.core.TableDefinition
 import com.gu.tableversions.core.TableVersions.{UpdateMessage, UserId}
 import com.gu.tableversions.spark.{SparkSupport, VersionContext}
@@ -14,7 +15,7 @@ import scala.reflect.runtime.universe.TypeTag
   * Example code for loading data into versioned tables and updating the versions of such tables.
   */
 class TableLoader[T <: Product: TypeTag](
-    versionContext: VersionContext,
+    versionContext: VersionContext[IO],
     table: TableDefinition,
     createTableDdl: String,
     isSnapshot: Boolean)(implicit spark: SparkSession)

@@ -24,8 +24,8 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
   import spark.implicits._
 
   // Stub version generator that returns the same version on every invocation
-  lazy val version1 = Version.generateVersion.unsafeRunSync()
-  lazy val version2 = Version.generateVersion.unsafeRunSync()
+  lazy val version1 = Version.generateVersion[IO].unsafeRunSync()
+  lazy val version2 = Version.generateVersion[IO].unsafeRunSync()
   val generateVersion: IO[Version] = IO.pure(version1)
 
   it should "return all partitions for a dataset with a single partition column" in {
