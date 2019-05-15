@@ -85,7 +85,7 @@ object VersionedFileSystem extends LazyLogging {
     Map(
       // @formatter: off
       "spark.hadoop.fs.versioned.impl" -> "com.gu.tableversions.spark.filesystem.VersionedFileSystem",
-      "spark.hadoop." + ConfigKeys.baseFS -> "file",
+      "spark.hadoop." + ConfigKeys.baseFS -> baseFileSystemSchema,
       "spark.hadoop." + ConfigKeys.configDirectory -> configDirectory.toString,
       "spark.hadoop." + VersionedFileSystem.ConfigKeys.disableCache -> "true"
       // @formatter: on

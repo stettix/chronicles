@@ -277,6 +277,16 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableUpdate.userId shouldBe userId
   }
 
+  "withVersionedScheme" should "preserve all URI parts" in {
+
+    val uri = new URI("s3", "bucketName", "/some/path/date=2019-01-01", "someQueryString", "someFragment")
+
+    val expectedUri =
+      new URI(VersionedFileSystem.scheme, "bucketName", "/some/path/date=2019-01-01", "someQueryString", "someFragment")
+
+    SparkSupport.setVersionedScheme(uri) shouldBe expectedUri
+  }
+
   private def readDataset[T <: Product: TypeTag](path: URI): Dataset[T] =
     spark.read
       .parquet(path.toString)
