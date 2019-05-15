@@ -36,6 +36,8 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 class VersionedFileSystem extends ProxyFileSystem with LazyLogging {
 
   override def initialize(path: URI, conf: Configuration): Unit = {
+    logger.info(s"Initialising versioned filesystem with path '$path'")
+
     val cacheDisabled = conf.getBoolean(ConfigKeys.disableCache, false)
     val baseFsScheme = conf.get(ConfigKeys.baseFS)
     val configDirectory = conf.get(ConfigKeys.configDirectory)
@@ -50,11 +52,13 @@ class VersionedFileSystem extends ProxyFileSystem with LazyLogging {
 
     // When initialising the versioned filesystem we need to swap the versioned:// prefix
     // in the URI passed during initialisation to the base scheme.
-    val baseUri = new URI(baseFsScheme, null, path.getSchemeSpecificPart, null, null)
+    val baseUri = new URI(baseFsScheme, path.getAuthority, path.getPath, path.getQuery, path.getFragment)
+    logger.info(s"URI for base filesystem: $baseUri")
 
     val config = VersionedFileSystem
       .readConfig(new URI(configDirectory), conf)
-      .valueOr(e => throw new Exception("Unable to read partition version configuration", e))
+      .valueOr(e =>
+        throw new Exception(s"Unable to read partition version configuration from directory: $configDirectory", e))
 
     val pathMapper = new VersionedPathMapper(baseFsScheme, config.partitionVersions)
 
