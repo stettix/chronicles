@@ -75,6 +75,7 @@ object VersionedFileSystem extends LazyLogging {
 
   object ConfigKeys {
     val baseFS = "fs.versioned.baseFS"
+    val committerAlgorithm = "mapreduce.fileoutputcommitter.algorithm.version"
     val disableCache = "fs.versioned.impl.disable.cache"
     val configDirectory = "fs.versioned.configDirectory"
   }
@@ -90,6 +91,7 @@ object VersionedFileSystem extends LazyLogging {
       // @formatter: off
       "spark.hadoop.fs.versioned.impl" -> "com.gu.tableversions.spark.filesystem.VersionedFileSystem",
       "spark.hadoop." + ConfigKeys.baseFS -> baseFileSystemSchema,
+      ConfigKeys.committerAlgorithm -> "2",
       "spark.hadoop." + ConfigKeys.configDirectory -> configDirectory.toString,
       "spark.hadoop." + VersionedFileSystem.ConfigKeys.disableCache -> "true"
       // @formatter: on
