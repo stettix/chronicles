@@ -66,13 +66,12 @@ lazy val `chronicles-glue` = project
   .in(file("glue"))
   .settings(commonSettings)
   .configs(IntegrationTest)
-  .settings(libraryDependencies ++= Seq(
-    "commons-io" % "commons-io" % "2.6",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-    "log4j" % "log4j" % "1.2.17",
-    "com.amazonaws" % "aws-java-sdk-glue" % "1.11.538",
-    scalatest % IntegrationTest
-  ))
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
+      "com.amazonaws" % "aws-java-sdk-glue" % "1.11.566",
+      scalatest % IntegrationTest
+    ))
   .settings(parallelExecution in Test := false)
   .dependsOn(`chronicles-core` % "compile->compile;test->test;it->test")
 
