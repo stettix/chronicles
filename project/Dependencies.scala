@@ -2,7 +2,7 @@ import sbt._
 
 object Dependencies {
 
-  val sparkVersion = "2.3.2"
+  val sparkVersion = "2.4.3"
 
   lazy val sparkDependencies: Seq[ModuleID] =
     Seq(
@@ -13,12 +13,12 @@ object Dependencies {
 
   lazy val catsDependencies: Seq[ModuleID] =
     Seq(
-      "org.typelevel" %% "cats-core" % "1.5.0",
-      "org.typelevel" %% "cats-effect" % "1.2.0"
+      "org.typelevel" %% "cats-core" % "1.6.1",
+      "org.typelevel" %% "cats-effect" % "1.3.1"
     )
 
   lazy val scalatest = "org.scalatest" %% "scalatest" % "3.0.5"
 
-  val circeVersion = "0.10.0"
+  val circeVersion = "0.11.1"
 
 }
