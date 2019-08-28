@@ -4,7 +4,7 @@ import java.time.Instant
 
 import cats.effect.IO
 import dev.chronicles.core.TableDefinition
-import dev.chronicles.core.TableVersions.{UpdateMessage, UserId}
+import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.spark.SparkSupport
 import com.typesafe.scalalogging.LazyLogging
 import dev.chronicles.spark.{SparkSupport, VersionContext}

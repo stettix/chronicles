@@ -3,17 +3,17 @@ package dev.chronicles.core
 import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import cats.implicits._
-import dev.chronicles.core.InMemoryTableVersions._
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.InMemoryVersionTracker._
+import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.util.RichRef._
 
 /**
   * Reference implementation of the table version store. Does not persist state.
   */
-class InMemoryTableVersions[F[_]] private (allUpdates: Ref[F, TableUpdates])(implicit F: Sync[F])
-    extends TableVersions[F] {
+class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(implicit F: Sync[F])
+    extends VersionTracker[F] {
 
-  override def commit(table: TableName, update: TableVersions.TableUpdate): F[Unit] = {
+  override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
     val applyUpdate: TableUpdates => Either[Exception, TableUpdates] = { currentTableUpdates =>
       currentTableUpdates.get(table).fold[Either[Exception, TableUpdates]](Left(unknownTableError(table))) {
         currentTableState =>
@@ -58,14 +58,14 @@ class InMemoryTableVersions[F[_]] private (allUpdates: Ref[F, TableUpdates])(imp
     }
 }
 
-object InMemoryTableVersions {
+object InMemoryVersionTracker {
 
   type TableUpdates = Map[TableName, TableState]
 
   /**
     * Safe constructor
     */
-  def apply[F[_]](implicit F: Sync[F]): F[InMemoryTableVersions[F]] =
-    Ref[F].of(Map.empty[TableName, TableState]).map(new InMemoryTableVersions[F](_))
+  def apply[F[_]](implicit F: Sync[F]): F[InMemoryVersionTracker[F]] =
+    Ref[F].of(Map.empty[TableName, TableState]).map(new InMemoryVersionTracker[F](_))
 
 }

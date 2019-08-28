@@ -6,7 +6,7 @@ import java.time.Instant
 
 import cats.effect.IO
 import dev.chronicles.core.Partition.PartitionColumn
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
 import dev.chronicles.core.Metastore.TableChanges
 import dev.chronicles.core.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
@@ -112,12 +112,12 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         computedChanges = stubbedChanges
       )
 
-      val tableVersions: TableVersions[IO] = (for {
-        t <- InMemoryTableVersions[IO]
+      val versionTracker: VersionTracker[IO] = (for {
+        t <- InMemoryVersionTracker[IO]
         _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
+      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -167,12 +167,12 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         computedChanges = stubbedChanges
       )
 
-      val tableVersions: TableVersions[IO] = (for {
-        t <- InMemoryTableVersions[IO]
+      val versionTracker: VersionTracker[IO] = (for {
+        t <- InMemoryVersionTracker[IO]
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
+      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -225,12 +225,12 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         computedChanges = stubbedChanges
       )
 
-      val tableVersions: TableVersions[IO] = (for {
-        t <- InMemoryTableVersions[IO]
+      val versionTracker: VersionTracker[IO] = (for {
+        t <- InMemoryVersionTracker[IO]
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(tableVersions, stubMetastore), generateVersion)
+      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._

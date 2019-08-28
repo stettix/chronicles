@@ -3,7 +3,7 @@ package dev.chronicles.examples
 import java.net.URI
 import java.nio.file.Paths
 
-import dev.chronicles.core.TableVersions.{UpdateMessage, UserId}
+import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
 import dev.chronicles.spark.SparkHiveSuite
 import dev.chronicles.spark.SparkHiveSuite
@@ -76,15 +76,15 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     updatedVersionDirs should contain allElementsOf initialTableVersionDirs
 
     // Get version history
-    val versionHistory = metastore.updates(table.name).unsafeRunSync()
-    versionHistory.size shouldBe 3 // One initial version plus two written versions
+    val versionTracker = metastore.updates(table.name).unsafeRunSync()
+    versionTracker.size shouldBe 3 // One initial version plus two written versions
 
     // Roll back to previous version
-    metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
+    metastore.checkout(table.name, versionTracker.drop(1).head.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs identitiesDay1
 
     // Roll forward to latest
-    metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
+    metastore.checkout(table.name, versionTracker.head.id).unsafeRunSync()
     loader.data().collect() should contain theSameElementsAs identitiesDay2
   }
 

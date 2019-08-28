@@ -6,8 +6,8 @@ import java.time.Instant
 import cats.effect.{Effect, Sync}
 import cats.implicits._
 import dev.chronicles.core.Metastore.TableChanges
-import dev.chronicles.core.TableVersions.TableOperation._
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.VersionTracker.TableOperation._
+import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
 import dev.chronicles.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
 import dev.chronicles.spark.filesystem.VersionedFileSystem
