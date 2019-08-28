@@ -33,7 +33,7 @@ lazy val assemblySettings = Seq(
 )
 
 lazy val chronicles = (project in file("."))
-  .aggregate(`chronicles-core`, `chronicles-spark`, `chronicles-glue`, `chronicles-cli`, `chronicles-examples`)
+  .aggregate(`chronicles-core`, `chronicles-spark`, `chronicles-aws-glue`, `chronicles-cli`, `chronicles-examples`)
   .settings(commonSettings)
   .disablePlugins(sbtassembly.AssemblyPlugin)
 
@@ -62,8 +62,8 @@ lazy val `chronicles-spark` = project
   .settings(fork in Test := true)
   .dependsOn(`chronicles-core` % "compile->compile;test->test")
 
-lazy val `chronicles-glue` = project
-  .in(file("glue"))
+lazy val `chronicles-aws-glue` = project
+  .in(file("aws-glue"))
   .settings(commonSettings)
   .configs(IntegrationTest)
   .settings(

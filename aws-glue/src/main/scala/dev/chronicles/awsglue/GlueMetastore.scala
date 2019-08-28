@@ -1,4 +1,4 @@
-package dev.chronicles.glue
+package dev.chronicles.awsglue
 
 import java.net.URI
 
@@ -75,7 +75,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       case UpdateTableVersion(versionNumber)          => updateTableLocation(table, versionNumber)
     }
 
-  private[glue] def addPartition(table: TableName, partition: Partition, version: Version): F[Unit] = {
+  private[awsglue] def addPartition(table: TableName, partition: Partition, version: Version): F[Unit] = {
     logger.info(s"adding partition ${partition.columnValues.toList} for table $table and $version")
 
     def partitionLocation(tableLocation: URI): String = {
@@ -99,7 +99,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     } yield ()
   }
 
-  private[glue] def updatePartitionVersion(table: TableName, partition: Partition, version: Version): F[Unit] = {
+  private[awsglue] def updatePartitionVersion(table: TableName, partition: Partition, version: Version): F[Unit] = {
     logger.info(s"updating partition ${partition.columnValues.toList} for table $table and $version")
 
     def updatePartition(storageDescriptor: StorageDescriptor): F[Unit] = {
@@ -140,7 +140,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     F.delay(glue.deletePartition(deletePartitionRequest)).void
   }
 
-  private[glue] def updateTableLocation(table: TableName, version: Version): F[Unit] = {
+  private[awsglue] def updateTableLocation(table: TableName, version: Version): F[Unit] = {
     logger.info(s"updating table location for table $table")
     for {
       glueTable <- getGlueTable(table)
@@ -154,19 +154,19 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     } yield ()
   }
 
-  private[glue] def getGluePartitions(table: TableName): F[List[GluePartition]] = F.delay {
+  private[awsglue] def getGluePartitions(table: TableName): F[List[GluePartition]] = F.delay {
     val req = new GetPartitionsRequest().withDatabaseName(table.schema).withTableName(table.name)
     val getPartitionsResult: GetPartitionsResult = glue.getPartitions(req)
     getPartitionsResult.getPartitions.toList
   }
 
-  private[glue] def getGlueTable(table: TableName): F[GlueTable] = F.delay {
+  private[awsglue] def getGlueTable(table: TableName): F[GlueTable] = F.delay {
     val getTableRequest = new GetTableRequest().withDatabaseName(table.schema).withName(table.name)
     val getTableResponse = glue.getTable(getTableRequest)
     getTableResponse.getTable
   }
 
-  private[glue] def findTableLocation(glueTable: GlueTable): URI = {
+  private[awsglue] def findTableLocation(glueTable: GlueTable): URI = {
     val location = glueTable.getStorageDescriptor.getLocation
     new URI(location)
   }
