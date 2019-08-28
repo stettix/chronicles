@@ -5,7 +5,7 @@ import java.nio.file.Paths
 import java.sql.{Date, Timestamp}
 
 import dev.chronicles.core.Partition.PartitionColumn
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
 import dev.chronicles.spark.SparkHiveSuite
 import dev.chronicles.spark.SparkHiveSuite

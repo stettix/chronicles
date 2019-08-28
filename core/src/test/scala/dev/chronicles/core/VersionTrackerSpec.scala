@@ -5,25 +5,25 @@ import java.time.Instant
 import cats.effect.IO
 import cats.implicits._
 import dev.chronicles.core.Partition.PartitionColumn
-import dev.chronicles.core.TableVersions.TableOperation.{AddPartitionVersion, AddTableVersion, RemovePartition}
-import dev.chronicles.core.TableVersions.{CommitId, TableUpdate, UpdateMessage, UserId}
+import dev.chronicles.core.VersionTracker.TableOperation.{AddPartitionVersion, AddTableVersion, RemovePartition}
+import dev.chronicles.core.VersionTracker.{CommitId, TableUpdate, UpdateMessage, UserId}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.Random
 
 /**
-  * Spec containing tests that apply across all TableVersions implementations.
+  * Spec containing tests that apply across all implementations.
   *
-  * These are black box tests purely in terms of the TableVersions interface.
+  * These are black box tests purely in terms of the common interface.
   */
-trait TableVersionsSpec {
+trait VersionTrackerSpec {
   this: FlatSpec with Matchers =>
 
   val version1 = Version.generateVersion[IO].unsafeRunSync()
   val version2 = Version.generateVersion[IO].unsafeRunSync()
   val version3 = Version.generateVersion[IO].unsafeRunSync()
 
-  def tableVersionsBehaviour(emptyTableVersions: IO[TableVersions[IO]]): Unit = {
+  def versionTrackerBehaviour(initialVersionTracker: IO[VersionTracker[IO]]): Unit = {
 
     val table = TableName("schema", "table")
     val userId = UserId("Test user")
@@ -32,15 +32,15 @@ trait TableVersionsSpec {
     it should "have an idempotent 'init' operation" in {
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init1"), Instant.now())
-        tableVersion1 <- tableVersions.currentVersion(table)
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init1"), Instant.now())
+        tableVersion1 <- versionTracker.currentVersion(table)
 
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init2"), Instant.now())
-        tableVersion2 <- tableVersions.currentVersion(table)
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init2"), Instant.now())
+        tableVersion2 <- versionTracker.currentVersion(table)
 
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init3"), Instant.now())
-        tableVersion3 <- tableVersions.currentVersion(table)
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init3"), Instant.now())
+        tableVersion3 <- versionTracker.currentVersion(table)
 
       } yield (tableVersion1, tableVersion2, tableVersion3)
 
@@ -64,13 +64,13 @@ trait TableVersionsSpec {
       )
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
 
-        initialTableVersion <- tableVersions.currentVersion(table)
+        initialTableVersion <- versionTracker.currentVersion(table)
 
         // Add some partitions
-        _ <- tableVersions.commit(
+        _ <- versionTracker.commit(
           table,
           TableUpdate(userId,
                       UpdateMessage("Add initial partitions"),
@@ -78,15 +78,15 @@ trait TableVersionsSpec {
                       initialPartitionVersions.map(AddPartitionVersion.tupled).toList)
         )
 
-        tableVersion1 <- tableVersions.currentVersion(table)
+        tableVersion1 <- versionTracker.currentVersion(table)
 
         // Do an update with one updated partition and one new one
-        _ <- tableVersions.commit(table,
-                                  TableUpdate(userId,
-                                              UpdateMessage("First update"),
-                                              timestamp(2),
-                                              partitionUpdate1.map(AddPartitionVersion.tupled).toList))
-        tableVersion2 <- tableVersions.currentVersion(table)
+        _ <- versionTracker.commit(table,
+                                   TableUpdate(userId,
+                                               UpdateMessage("First update"),
+                                               timestamp(2),
+                                               partitionUpdate1.map(AddPartitionVersion.tupled).toList))
+        tableVersion2 <- versionTracker.currentVersion(table)
 
       } yield (initialTableVersion, tableVersion1, tableVersion2)
 
@@ -111,11 +111,11 @@ trait TableVersionsSpec {
       )
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
 
         // Add some partitions
-        _ <- tableVersions.commit(
+        _ <- versionTracker.commit(
           table,
           TableUpdate(userId,
                       UpdateMessage("Add initial partitions"),
@@ -124,7 +124,7 @@ trait TableVersionsSpec {
         )
 
         // Remove one of the partitions
-        _ <- tableVersions.commit(
+        _ <- versionTracker.commit(
           table,
           TableUpdate(userId,
                       UpdateMessage("Add initial partitions"),
@@ -132,10 +132,10 @@ trait TableVersionsSpec {
                       List(RemovePartition(Partition(date, "2019-03-01"))))
         )
 
-        versionAfterRemove <- tableVersions.currentVersion(table)
+        versionAfterRemove <- versionTracker.currentVersion(table)
 
         // Re-add the removed partition
-        _ <- tableVersions.commit(
+        _ <- versionTracker.commit(
           table,
           TableUpdate(userId,
                       UpdateMessage("First update"),
@@ -143,7 +143,7 @@ trait TableVersionsSpec {
                       List(AddPartitionVersion(Partition(date, "2019-03-01"), version2)))
         )
 
-        versionAfterReAdd <- tableVersions.currentVersion(table)
+        versionAfterReAdd <- versionTracker.currentVersion(table)
 
       } yield (versionAfterRemove, versionAfterReAdd)
 
@@ -167,23 +167,23 @@ trait TableVersionsSpec {
       val tableVersion2 = SnapshotTableVersion(version2)
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
-        initialTableVersion <- tableVersions.currentVersion(table)
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        initialTableVersion <- versionTracker.currentVersion(table)
 
-        commitResult1 <- tableVersions.commit(table,
-                                              TableUpdate(userId,
-                                                          UpdateMessage("First commit"),
-                                                          timestamp(1),
-                                                          List(AddTableVersion(tableVersion1.version))))
-        currentVersion1 <- tableVersions.currentVersion(table)
+        commitResult1 <- versionTracker.commit(table,
+                                               TableUpdate(userId,
+                                                           UpdateMessage("First commit"),
+                                                           timestamp(1),
+                                                           List(AddTableVersion(tableVersion1.version))))
+        currentVersion1 <- versionTracker.currentVersion(table)
 
-        commitResult2 <- tableVersions.commit(table,
-                                              TableUpdate(userId,
-                                                          UpdateMessage("Second commit"),
-                                                          timestamp(2),
-                                                          List(AddTableVersion(tableVersion2.version))))
-        currentVersion2 <- tableVersions.currentVersion(table)
+        commitResult2 <- versionTracker.commit(table,
+                                               TableUpdate(userId,
+                                                           UpdateMessage("Second commit"),
+                                                           timestamp(2),
+                                                           List(AddTableVersion(tableVersion2.version))))
+        currentVersion2 <- versionTracker.currentVersion(table)
 
       } yield (initialTableVersion, commitResult1, currentVersion1, commitResult2, currentVersion2)
 
@@ -215,39 +215,39 @@ trait TableVersionsSpec {
                                      List(AddPartitionVersion(partition1, version2)))
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = false, userId, UpdateMessage("init"), timestamp(0))
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), timestamp(0))
 
-        historyAfterInit <- tableVersions.updates(table)
+        historyAfterInit <- versionTracker.updates(table)
 
-        _ <- tableVersions.commit(table, tableUpdate1)
-        _ <- tableVersions.commit(table, tableUpdate2)
-        _ <- tableVersions.commit(table, tableUpdate3)
+        _ <- versionTracker.commit(table, tableUpdate1)
+        _ <- versionTracker.commit(table, tableUpdate2)
+        _ <- versionTracker.commit(table, tableUpdate3)
 
-        versionAfterWrites <- tableVersions.currentVersion(table)
+        versionAfterWrites <- versionTracker.currentVersion(table)
 
         // Get the update history after updates
-        fullHistory <- tableVersions.updates(table)
+        fullHistory <- versionTracker.updates(table)
 
         // Setting the current version to the latest should have no effect
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.head.id)
-        versionAfterWrites2 <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
+        versionAfterWrites2 <- versionTracker.currentVersion(table)
 
         // Set the initial version, i.e. the table as it was before any committed version
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.last.id)
-        versionSetToInitial <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.last.id)
+        versionSetToInitial <- versionTracker.currentVersion(table)
 
         // Set the version after the first commit
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.takeRight(2).head.id)
-        versionSetToFirst <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.takeRight(2).head.id)
+        versionSetToFirst <- versionTracker.currentVersion(table)
 
         // Set the second from last version
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.drop(1).head.id)
-        versionSetToSecond <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.drop(1).head.id)
+        versionSetToSecond <- versionTracker.currentVersion(table)
 
         // Set the latest version again
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.head.id)
-        versionSetToLatest <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
+        versionSetToLatest <- versionTracker.currentVersion(table)
 
       } yield
         (historyAfterInit,
@@ -303,39 +303,39 @@ trait TableVersionsSpec {
         TableUpdate(userId, UpdateMessage("Third commit"), timestamp(3), List(AddTableVersion(version3)))
 
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
-        historyAfterInit <- tableVersions.updates(table)
+        historyAfterInit <- versionTracker.updates(table)
 
-        _ <- tableVersions.commit(table, tableUpdate1)
-        _ <- tableVersions.commit(table, tableUpdate2)
-        _ <- tableVersions.commit(table, tableUpdate3)
+        _ <- versionTracker.commit(table, tableUpdate1)
+        _ <- versionTracker.commit(table, tableUpdate2)
+        _ <- versionTracker.commit(table, tableUpdate3)
 
-        versionAfterWrites <- tableVersions.currentVersion(table)
+        versionAfterWrites <- versionTracker.currentVersion(table)
 
         // Get the update history after updates
-        fullHistory <- tableVersions.updates(table)
+        fullHistory <- versionTracker.updates(table)
 
         // Setting the current version to the latest should have no effect
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.head.id)
-        versionAfterWrites2 <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
+        versionAfterWrites2 <- versionTracker.currentVersion(table)
 
         // Set the initial version, i.e. the table as it was before any committed version
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.last.id)
-        versionSetToInitial <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.last.id)
+        versionSetToInitial <- versionTracker.currentVersion(table)
 
         // Set the version after the first commit
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.takeRight(2).head.id)
-        versionSetToFirst <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.takeRight(2).head.id)
+        versionSetToFirst <- versionTracker.currentVersion(table)
 
         // Set the second from last version
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.drop(1).head.id)
-        versionSetToSecond <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.drop(1).head.id)
+        versionSetToSecond <- versionTracker.currentVersion(table)
 
         // Set the latest version again
-        _ <- tableVersions.setCurrentVersion(table, fullHistory.head.id)
-        versionSetToLatest <- tableVersions.currentVersion(table)
+        _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
+        versionSetToLatest <- versionTracker.currentVersion(table)
 
       } yield
         (historyAfterInit,
@@ -378,8 +378,8 @@ trait TableVersionsSpec {
 
     it should "return updates in the same order as they were committed, but with the most recent first" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
         // Generate some updates
         indexedVersions <- (1 to 100).map(n => Version.generateVersion[IO].map(v => n -> v)).toList.sequence
@@ -391,9 +391,9 @@ trait TableVersionsSpec {
         tableUpdates = Random.shuffle(initialUpdates)
 
         // Commit all the updates
-        _ <- tableUpdates.map(update => tableVersions.commit(table, update)).sequence
+        _ <- tableUpdates.map(update => versionTracker.commit(table, update)).sequence
 
-        updateHistory <- tableVersions.updates(table)
+        updateHistory <- versionTracker.updates(table)
 
       } yield (tableUpdates, updateHistory)
 
@@ -407,8 +407,8 @@ trait TableVersionsSpec {
 
     it should "return an error if trying to get current version of an unknown table" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.currentVersion(table)
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.currentVersion(table)
       } yield ()
 
       val ex = the[Exception] thrownBy scenario.unsafeRunSync()
@@ -417,9 +417,9 @@ trait TableVersionsSpec {
 
     it should "return an error if trying to commit changes for an unknown table" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
+        versionTracker <- initialVersionTracker
 
-        _ <- tableVersions.commit(
+        _ <- versionTracker.commit(
           TableName("schema", "table"),
           TableUpdate(userId, UpdateMessage("Commit initial partitions"), timestamp(1), List(AddTableVersion(version1)))
         )
@@ -431,8 +431,8 @@ trait TableVersionsSpec {
 
     it should "return an error if trying to get the version history for an unknown table" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.updates(table)
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.updates(table)
       } yield ()
 
       val ex = the[Exception] thrownBy scenario.unsafeRunSync()
@@ -441,8 +441,8 @@ trait TableVersionsSpec {
 
     it should "return an error if trying to set the version of an unknown table" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.setCurrentVersion(table, CommitId("unknown-commit-id"))
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.setCurrentVersion(table, CommitId("unknown-commit-id"))
 
       } yield ()
 
@@ -452,10 +452,10 @@ trait TableVersionsSpec {
 
     it should "return an error if trying to set the version of a table to an unknown commit ID" in {
       val scenario = for {
-        tableVersions <- emptyTableVersions
-        _ <- tableVersions.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        versionTracker <- initialVersionTracker
+        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
-        _ <- tableVersions.setCurrentVersion(table, CommitId("unknown-commit-id"))
+        _ <- versionTracker.setCurrentVersion(table, CommitId("unknown-commit-id"))
 
       } yield ()
 

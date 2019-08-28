@@ -5,13 +5,13 @@ import java.util.UUID
 
 import cats.effect.Sync
 import cats.implicits._
-import dev.chronicles.core.TableVersions.TableOperation._
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.VersionTracker.TableOperation._
+import dev.chronicles.core.VersionTracker._
 
 /**
   * This defines the interface for querying and updating table version information tracked by the system.
   */
-trait TableVersions[F[_]] {
+trait VersionTracker[F[_]] {
 
   /**
     * Start tracking version information for given table.
@@ -47,12 +47,12 @@ trait TableVersions[F[_]] {
   /**
     * Update partition versions to the given versions.
     */
-  def commit(table: TableName, update: TableVersions.TableUpdate): F[Unit]
+  def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit]
 
   /**
     * Set the current version of a table to refer to an existing version.
     */
-  def setCurrentVersion(table: TableName, id: TableVersions.CommitId): F[Unit]
+  def setCurrentVersion(table: TableName, id: VersionTracker.CommitId): F[Unit]
 
   //
   // Internal operations to be provided by implementations
@@ -70,7 +70,7 @@ trait TableVersions[F[_]] {
 
 }
 
-object TableVersions {
+object VersionTracker {
 
   final case class TableUpdateMetadata(
       id: CommitId,

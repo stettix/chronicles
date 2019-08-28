@@ -4,7 +4,7 @@ import java.nio.file.Path
 import java.sql.{Date, Timestamp}
 
 import dev.chronicles.core.Partition.PartitionColumn
-import dev.chronicles.core.TableVersions.{UpdateMessage, UserId}
+import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
 import dev.chronicles.spark.SparkHiveSuite
 import dev.chronicles.spark.SparkHiveSuite

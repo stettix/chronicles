@@ -1,4 +1,4 @@
-package dev.chronicles.glue
+package dev.chronicles.awsglue
 
 import com.amazonaws.services.glue.model.{SerDeInfo, StorageDescriptor}
 import org.scalatest.{FlatSpec, Matchers}

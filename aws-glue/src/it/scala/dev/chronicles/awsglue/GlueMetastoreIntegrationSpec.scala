@@ -1,4 +1,4 @@
-package dev.chronicles.glue
+package dev.chronicles.awsglue
 
 import java.net.URI
 

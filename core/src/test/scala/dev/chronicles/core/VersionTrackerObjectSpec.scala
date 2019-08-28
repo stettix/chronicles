@@ -2,10 +2,10 @@ package dev.chronicles.core
 
 import cats.effect.IO
 import dev.chronicles.core.Partition.PartitionColumn
-import dev.chronicles.core.TableVersions.TableOperation.{AddPartitionVersion, RemovePartition}
+import dev.chronicles.core.VersionTracker.TableOperation.{AddPartitionVersion, RemovePartition}
 import org.scalatest.{FlatSpec, Matchers}
 
-class TableVersionsObjectSpec extends FlatSpec with Matchers {
+class VersionTrackerObjectSpec extends FlatSpec with Matchers {
 
   val version1 = Version.generateVersion[IO].unsafeRunSync()
   val version2 = Version.generateVersion[IO].unsafeRunSync()
@@ -14,7 +14,7 @@ class TableVersionsObjectSpec extends FlatSpec with Matchers {
   val date = PartitionColumn("date")
   val emptyPartitionedTable = PartitionedTableVersion(Map.empty)
   "Combining partition operations" should "produce an empty table version when no updates have been applied" in {
-    TableVersions.applyPartitionUpdates(emptyPartitionedTable)(Nil) shouldBe emptyPartitionedTable
+    VersionTracker.applyPartitionUpdates(emptyPartitionedTable)(Nil) shouldBe emptyPartitionedTable
   }
 
   it should "produce the same table when an empty update is applied" in {
@@ -23,7 +23,7 @@ class TableVersionsObjectSpec extends FlatSpec with Matchers {
       Partition(date, "2019-03-02") -> version2
     )
     val tableVersion = PartitionedTableVersion(partitionVersions)
-    TableVersions.applyPartitionUpdates(tableVersion)(Nil) shouldBe tableVersion
+    VersionTracker.applyPartitionUpdates(tableVersion)(Nil) shouldBe tableVersion
   }
 
   it should "produce a version with the given partitions when no previous partition versions exist" in {
@@ -32,7 +32,7 @@ class TableVersionsObjectSpec extends FlatSpec with Matchers {
       Partition(date, "2019-03-02") -> version1
     )
     val partitionUpdates = partitionVersions.map(AddPartitionVersion.tupled).toList
-    TableVersions.applyPartitionUpdates(emptyPartitionedTable)(partitionUpdates) shouldBe PartitionedTableVersion(
+    VersionTracker.applyPartitionUpdates(emptyPartitionedTable)(partitionUpdates) shouldBe PartitionedTableVersion(
       partitionVersions)
   }
 
@@ -53,7 +53,7 @@ class TableVersionsObjectSpec extends FlatSpec with Matchers {
       Partition(date, "2019-03-03") -> version1
     )
 
-    TableVersions.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(
+    VersionTracker.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(
       expectedPartitionVersions)
   }
 
@@ -72,7 +72,7 @@ class TableVersionsObjectSpec extends FlatSpec with Matchers {
       Partition(date, "2019-03-03") -> version1
     )
 
-    TableVersions.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(
+    VersionTracker.applyPartitionUpdates(initialTableVersion)(partitionUpdates) shouldBe PartitionedTableVersion(
       expectedPartitionVersions)
   }
 

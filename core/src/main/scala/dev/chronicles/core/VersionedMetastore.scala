@@ -5,32 +5,32 @@ import java.time.Instant
 import cats.effect.Sync
 import cats.implicits._
 import dev.chronicles.core.Metastore.TableChanges
-import dev.chronicles.core.TableVersions._
+import dev.chronicles.core.VersionTracker._
 
 /**
-  * High level API for table version tracking, that aggregates the functionality from TableVersions and Metastore
+  * High level API for table version tracking, that aggregates the functionality from VersionTracker and Metastore
   * in order to provide its functionality.
   */
-final case class VersionedMetastore[F[_]: Sync](tableVersions: TableVersions[F], metastore: Metastore[F]) {
+final case class VersionedMetastore[F[_]: Sync](versionTracker: VersionTracker[F], metastore: Metastore[F]) {
 
   /**
     * Start tracking version information for given table.
     * This must be called before any other operations can be performed on this table.
     */
   def init(table: TableName, isSnapshot: Boolean, userId: UserId, message: UpdateMessage, timestamp: Instant): F[Unit] =
-    tableVersions.init(table, isSnapshot, userId, message, timestamp)
+    versionTracker.init(table, isSnapshot, userId, message, timestamp)
 
   /**
     * Get details about partition versions in a table.
     */
   def currentVersion(table: TableName): F[TableVersion] =
-    tableVersions.currentVersion(table)
+    versionTracker.currentVersion(table)
 
   /**
     * Get the history of updates for a given table, most recent first.
     */
   def updates(table: TableName): F[List[TableUpdateMetadata]] =
-    tableVersions.updates(table)
+    versionTracker.updates(table)
 
   /**
     * Update partition versions to the given versions, and update the metastore to match.
@@ -41,11 +41,11 @@ final case class VersionedMetastore[F[_]: Sync](tableVersions: TableVersions[F],
   def commit(table: TableName, update: TableUpdate): F[(TableVersion, TableChanges)] =
     for {
       // Commit version to version history
-      _ <- tableVersions.commit(table, update)
+      _ <- versionTracker.commit(table, update)
 
       // Get latest version details and Metastore table details and find the changes that
       // need to be applied to the underlying metastore
-      latestTableVersion <- tableVersions.currentVersion(table)
+      latestTableVersion <- versionTracker.currentVersion(table)
       metastoreVersion <- metastore.currentVersion(table)
       metastoreChanges = metastore.computeChanges(metastoreVersion, latestTableVersion)
 
@@ -58,8 +58,8 @@ final case class VersionedMetastore[F[_]: Sync](tableVersions: TableVersions[F],
     */
   def checkout(table: TableName, id: CommitId): F[Unit] =
     for {
-      _ <- tableVersions.setCurrentVersion(table, id)
-      newVersion <- tableVersions.currentVersion(table)
+      _ <- versionTracker.setCurrentVersion(table, id)
+      newVersion <- versionTracker.currentVersion(table)
       currentMetastoreVersion <- metastore.currentVersion(table)
       changes = metastore.computeChanges(currentMetastoreVersion, newVersion)
       _ <- metastore.update(table, changes)
