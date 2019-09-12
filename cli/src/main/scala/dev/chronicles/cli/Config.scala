@@ -1,6 +1,6 @@
 package dev.chronicles.cli
 
-case class Config() {}
+case class Config()
 
 object Config {
 

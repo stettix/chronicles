@@ -1,9 +1,10 @@
 package dev.chronicles.cli
 
+import cats.data.ValidatedNel
 import cats.effect.{ExitCode, IO, IOApp}
 import com.monovore.decline._
-
 import cats.implicits._
+import dev.chronicles.core.TableName
 
 /**
   * A command line application that interacts with version data and metastores
@@ -23,7 +24,7 @@ object ChroniclesCli extends IOApp {
       console <- Console[IO]
       config <- loadConfig(console) // TODO: may need config from args at some point
       client <- createClient(config)
-      _ <- client.executeAction(action, console)
+      _ <- client.executeAction(action)
     } yield ()
 
     // TODO:
@@ -52,6 +53,12 @@ object ChroniclesCli extends IOApp {
   private def createClient(config: Config): IO[VersionRepositoryClient[IO]] = ???
 
   private[cli] val argParser: Command[Action] = {
+    def validatedTableName(tableName: String): ValidatedNel[String, TableName] =
+      TableName
+        .fromFullyQualifiedName(tableName)
+        .toOption
+        .toValidNel(s"Invalid table name: '$tableName'. Should be in format <schema>.<table name>")
+
     val listTablesCommand: Opts[Action] = Opts.subcommand("tables", "List details about tables") {
       Opts.unit
         .map(_ => Action.ListTables)
@@ -60,13 +67,15 @@ object ChroniclesCli extends IOApp {
     val tableHistoryCommand: Opts[Action] = Opts.subcommand("log", "List version history for table") {
       Opts
         .argument[String]("table name")
-        .map(tableName => Action.ShowTableHistory(tableName))
+        .mapValidated(validatedTableName)
+        .map(Action.ShowTableHistory)
     }
 
     val listPartitionsCommand: Opts[Action] = Opts.subcommand("partitions", "List partitions for table") {
       Opts
         .argument[String]("table name")
-        .map(tableName => Action.ListPartitions(tableName))
+        .mapValidated(validatedTableName)
+        .map(Action.ListPartitions)
     }
 
     val modifyPartitionCommand: Opts[Action] =
@@ -75,7 +84,7 @@ object ChroniclesCli extends IOApp {
           Opts
             .argument[String]("partition action")
             .mapValidated(str => PartitionOperation.parse(str).toValidNel("Invalid partition operation")),
-          Opts.argument[String]("table name"),
+          Opts.argument[String]("table name").mapValidated(validatedTableName),
           Opts.argument[String]("partition name")
         ).mapN((partitionOperation, tableName, partitionName) =>
           partitionOperation match {
