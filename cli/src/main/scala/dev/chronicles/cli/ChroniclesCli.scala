@@ -1,10 +1,11 @@
 package dev.chronicles.cli
 
 import cats.data.ValidatedNel
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{Clock, ExitCode, IO, IOApp}
 import com.monovore.decline._
 import cats.implicits._
-import dev.chronicles.core.TableName
+import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
+import dev.chronicles.core.{InMemoryVersionTracker, TableName, VersionedMetastore}
 
 /**
   * A command line application that interacts with version data and metastores
@@ -12,45 +13,48 @@ import dev.chronicles.core.TableName
   */
 object ChroniclesCli extends IOApp {
 
-  override def run(args: List[String]): IO[ExitCode] =
-    (argParser.parse(args) match {
-      case Left(help)    => printHelp(help)
-      case Right(action) => execute(action)
-    }).map(_ => ExitCode.Success)
+  // TODO: Refactor this to be more testable by passing in console, IO to get user ID, and backend delegate.
+  override def run(args: List[String]): IO[ExitCode] = {
 
-  private def execute(action: Action): IO[Unit] = {
+    def parseArguments(console: Console[IO]): IO[Action] = argParser.parse(args) match {
+      case Left(help)    => console.println(help.toString).flatMap(_ => IO.raiseError(new Error("Invalid Arguments")))
+      case Right(action) => IO.pure(action)
+    }
+
+    val getUserName: IO[UserId] =
+      IO.fromEither(Option(System.getProperty("user.name")).map(UserId).toRight(new Error(s"Failed to get username")))
 
     for {
       console <- Console[IO]
-      config <- loadConfig(console) // TODO: may need config from args at some point
+      userId <- getUserName
+      action <- parseArguments(console)
+      _ <- execute(action, userId, console)
+    } yield ExitCode.Success
+  }
+
+  private def execute(action: Action, userId: UserId, console: Console[IO]): IO[Unit] =
+    for {
+      config <- loadConfig(console)
       client <- createClient(config)
-      _ <- client.executeAction(action)
+      _ <- client.executeAction(action, userId)
     } yield ()
 
-    // TODO:
-    //   - Load config [later: or use optional config from args]
-    //   - Create an instance of the client back-end defined in config, using the config
-    //   - Execute actions via this back-end
-    //   Initially I'll only have a dummy back-end for the in-memory implementation of version tracker (which is very useless for this...)
-    //     ...but I can use a real metastore backend (this needs to be switchable in config too)
-    //   But I can then add a backend that accesses the persistent version tracker directly (requires access to backing DB)
-    //   And when I add a REST service on top of the tracker, I can add a client for this one too.
-
-    ??? // TODO!
-  }
-
-  private def printHelp(help: Help): IO[Unit] =
-    IO(println(help.toString))
-
   private def loadConfig(console: Console[IO]): IO[Config] = {
-    // Try to read config from file
+    // TODO:
+    //   Try to read config from file
+    //   Try to parse the file content
 
-    // Try to parse the file content
-
-    ???
+    IO.pure(Config())
   }
 
-  private def createClient(config: Config): IO[VersionRepositoryClient[IO]] = ???
+  private def createClient(config: Config): IO[VersionRepositoryClient[IO]] = {
+    for {
+      console <- Console[IO]
+      versionTracker <- InMemoryVersionTracker[IO]
+      metastore = new StubMetastore[IO]
+      delegate = VersionedMetastore(versionTracker, metastore)
+    } yield new VersionRepositoryClient[IO](delegate, console, Clock[IO])
+  }
 
   private[cli] val argParser: Command[Action] = {
     def validatedTableName(tableName: String): ValidatedNel[String, TableName] =
@@ -59,12 +63,26 @@ object ChroniclesCli extends IOApp {
         .toOption
         .toValidNel(s"Invalid table name: '$tableName'. Should be in format <schema>.<table name>")
 
-    val listTablesCommand: Opts[Action] = Opts.subcommand("tables", "List details about tables") {
+    val messageOption = Opts
+      .option[String]("message", "Commit message for the operation")
+      .map(UpdateMessage)
+
+    val listTablesCommand = Opts.subcommand("tables", "List details about tables") {
       Opts.unit
         .map(_ => Action.ListTables)
     }
 
-    val tableHistoryCommand: Opts[Action] = Opts.subcommand("log", "List version history for table") {
+    val initTableCommand = Opts.subcommand("init", "Initialise version tracking for table") {
+      (Opts
+         .argument[String]("table name")
+         .mapValidated(validatedTableName),
+       Opts
+         .flag("isSnapshot", "Indicates whether the new table is a snapshot table (i.e. a non-partitioned table)")
+         .orFalse,
+       messageOption).mapN(Action.InitTable)
+    }
+
+    val tableHistoryCommand = Opts.subcommand("log", "List version history for table") {
       Opts
         .argument[String]("table name")
         .mapValidated(validatedTableName)
@@ -85,16 +103,18 @@ object ChroniclesCli extends IOApp {
             .argument[String]("partition action")
             .mapValidated(str => PartitionOperation.parse(str).toValidNel("Invalid partition operation")),
           Opts.argument[String]("table name").mapValidated(validatedTableName),
-          Opts.argument[String]("partition name")
-        ).mapN((partitionOperation, tableName, partitionName) =>
+          Opts.argument[String]("partition name"),
+          messageOption
+        ).mapN((partitionOperation, tableName, partitionName, message) =>
           partitionOperation match {
-            case PartitionOperation.Add    => Action.AddPartition(tableName, partitionName)
-            case PartitionOperation.Remove => Action.RemovePartition(tableName, partitionName)
+            case PartitionOperation.Add    => Action.AddPartition(tableName, partitionName, message)
+            case PartitionOperation.Remove => Action.RemovePartition(tableName, partitionName, message)
         })
       }
 
     Command("chronicles", "Version control for tables") {
       listTablesCommand orElse
+        initTableCommand orElse
         listPartitionsCommand orElse
         tableHistoryCommand orElse
         modifyPartitionCommand
