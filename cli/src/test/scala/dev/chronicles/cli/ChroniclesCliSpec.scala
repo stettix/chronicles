@@ -8,7 +8,7 @@ class ChroniclesCliSpec extends FlatSpec with Matchers {
   "Parsing command line arguments" should "complain if no command is given" in {
     assert(ChroniclesCli.argParser.parse(Nil).isLeft)
 
-    println(ChroniclesCli.argParser.parse(Nil).left.get.toString)
+    ChroniclesCli.argParser.parse(Nil).left.get.toString should include("Usage")
   }
 
   it should "build a ListTables action for a 'tables' command" in {

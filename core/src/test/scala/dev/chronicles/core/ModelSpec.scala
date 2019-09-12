@@ -77,9 +77,10 @@ class ModelSpec extends FlatSpec with Matchers with EitherValues with TableDrive
       "foo.",
       ".foo"
     )
+
     forAll(invalidTableNames) { tableName =>
       val parseResult = TableName.fromFullyQualifiedName(tableName)
-      withClue(parseResult) { parseResult.isLeft shouldBe true }
+      parseResult.isLeft shouldBe true
       parseResult.left.get.getMessage should include(tableName)
     }
 
