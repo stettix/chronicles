@@ -88,6 +88,8 @@ object PartitionSchema {
 
 final case class TableName(schema: String, name: String) {
   def fullyQualifiedName: String = s"$schema.$name"
+
+  override def toString = fullyQualifiedName
 }
 
 object TableName {
