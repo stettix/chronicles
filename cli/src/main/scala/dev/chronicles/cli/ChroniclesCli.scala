@@ -52,7 +52,7 @@ object ChroniclesCli extends IOApp {
       console <- Console[IO]
       versionTracker <- InMemoryVersionTracker[IO]
       metastore = new StubMetastore[IO]
-      delegate = VersionedMetastore(versionTracker, metastore)
+      delegate = new VersionedMetastore(versionTracker, metastore)
     } yield new VersionRepositoryClient[IO](delegate, console, Clock[IO])
   }
 

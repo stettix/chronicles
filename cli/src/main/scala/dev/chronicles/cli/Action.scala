@@ -1,7 +1,7 @@
 package dev.chronicles.cli
 
 import dev.chronicles.core.TableName
-import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
+import dev.chronicles.core.VersionTracker.UpdateMessage
 
 sealed trait PartitionOperation
 

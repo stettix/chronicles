@@ -27,10 +27,12 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
       removePartition(tableName, partitionName, userId, message)
   }
 
-  def listTables(console: Console[F]): F[Unit] = {
-    //delegate.versionTracker. // OOPS! No suitable method to call!!!
-    ???
-  }
+  def listTables(console: Console[F]): F[Unit] =
+    for {
+      tables <- delegate.tables()
+      tablesOutput = tables.map(_.fullyQualifiedName).mkString("\n")
+      _ <- console.println(tablesOutput)
+    } yield ()
 
   def listPartitions(table: TableName): F[Unit] = {
     def partitionsList(tableVersion: TableVersion): Either[Throwable, List[String]] = tableVersion match {
@@ -40,7 +42,7 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
     }
 
     for {
-      tableVersion <- delegate.versionTracker.currentVersion(table)
+      tableVersion <- delegate.currentVersion(table)
       partitions <- F.fromEither(partitionsList(tableVersion))
       _ <- console.println(partitions.mkString("\n"))
     } yield ()
@@ -59,7 +61,7 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
 
   def showTableHistory(tableName: TableName): F[Unit] =
     for {
-      history <- delegate.versionTracker.updates(tableName)
+      history <- delegate.updates(tableName)
       historyOutput = history.map(u => s"${u.id}\t${u.timestamp}\t${u.userId}\t${u.message}")
       _ <- console.println(historyOutput.mkString("\n"))
     } yield ()
@@ -73,7 +75,7 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
       now <- clock.realTime(Millis).map(Instant.ofEpochMilli)
       updateMetadata = VersionTracker.TableUpdateMetadata(userId, message, now)
       updates = Nil
-      _ <- delegate.versionTracker.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
+      _ <- delegate.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
       _ <- console.println(s"Added partition '$partitionName' to table '${tableName.fullyQualifiedName}'")
     } yield ()
 
@@ -86,7 +88,7 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
       now <- clock.realTime(Millis).map(Instant.ofEpochMilli)
       updateMetadata = VersionTracker.TableUpdateMetadata(userId, message, now)
       updates = Nil // TODO!!!
-      _ <- delegate.versionTracker.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
+      _ <- delegate.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
       _ <- console.println(s"Added partition '$partitionName' to table '${tableName.fullyQualifiedName}'")
     } yield ()
 

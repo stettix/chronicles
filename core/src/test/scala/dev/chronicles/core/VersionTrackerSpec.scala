@@ -26,8 +26,34 @@ trait VersionTrackerSpec {
   def versionTrackerBehaviour(initialVersionTracker: IO[VersionTracker[IO]]): Unit = {
 
     val table = TableName("schema", "table")
+    val table2 = TableName("schema", "table2")
+
     val userId = UserId("Test user")
     val date = PartitionColumn("date")
+
+    it should "initialise tables" in {
+
+      val table2 = TableName("schema", "table2")
+
+      val scenario = for {
+        versionTracker <- initialVersionTracker
+
+        tablesBeforeInit <- versionTracker.tables()
+
+        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init table 1"), Instant.now())
+        tables1 <- versionTracker.tables()
+
+        _ <- versionTracker.init(table2, isSnapshot = false, userId, UpdateMessage("init table 2"), Instant.now())
+        tables2 <- versionTracker.tables()
+
+      } yield (tablesBeforeInit, tables1, tables2)
+
+      val (tablesBeforeInit, tables1, tables2) = scenario.unsafeRunSync()
+
+      tablesBeforeInit shouldBe Nil
+      tables1 should contain theSameElementsAs List(table)
+      tables2 should contain theSameElementsAs List(table, table2)
+    }
 
     it should "have an idempotent 'init' operation" in {
 
