@@ -13,31 +13,31 @@ import dev.chronicles.core.{InMemoryVersionTracker, TableName, VersionedMetastor
   */
 object ChroniclesCli extends IOApp {
 
-  // TODO: Refactor this to be more testable by passing in console, IO to get user ID, and backend delegate.
-  override def run(args: List[String]): IO[ExitCode] = {
+  override def run(args: List[String]): IO[ExitCode] =
+    for {
+      console <- Console[IO]
+      config <- loadConfig(console)
+      client <- createClient(config)
+      userId <- getUserName
+      result <- doRun(args, client, console, userId)
+    } yield result
+
+  private[cli] def doRun(
+      args: List[String],
+      client: VersionRepositoryClient[IO],
+      console: Console[IO],
+      userId: UserId): IO[ExitCode] = {
 
     def parseArguments(console: Console[IO]): IO[Action] = argParser.parse(args) match {
       case Left(help)    => console.println(help.toString).flatMap(_ => IO.raiseError(new Error("Invalid Arguments")))
       case Right(action) => IO.pure(action)
     }
 
-    val getUserName: IO[UserId] =
-      IO.fromEither(Option(System.getProperty("user.name")).map(UserId).toRight(new Error(s"Failed to get username")))
-
     for {
-      console <- Console[IO]
-      userId <- getUserName
       action <- parseArguments(console)
-      _ <- execute(action, userId, console)
+      _ <- client.executeAction(action, userId)
     } yield ExitCode.Success
   }
-
-  private def execute(action: Action, userId: UserId, console: Console[IO]): IO[Unit] =
-    for {
-      config <- loadConfig(console)
-      client <- createClient(config)
-      _ <- client.executeAction(action, userId)
-    } yield ()
 
   private def loadConfig(console: Console[IO]): IO[Config] = {
     // TODO:
@@ -55,6 +55,12 @@ object ChroniclesCli extends IOApp {
       delegate = new VersionedMetastore(versionTracker, metastore)
     } yield new VersionRepositoryClient[IO](delegate, console, Clock[IO])
   }
+
+  private val getUserName: IO[UserId] =
+    IO.fromEither(
+      Option(System.getProperty("user.name"))
+        .map(UserId)
+        .toRight(new Error(s"Failed to get username")))
 
   private[cli] val argParser: Command[Action] = {
     def validatedTableName(tableName: String): ValidatedNel[String, TableName] =
