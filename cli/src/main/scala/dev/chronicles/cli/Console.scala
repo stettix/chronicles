@@ -5,7 +5,7 @@ import cats.effect._
 import scala.io.StdIn
 
 /**
-  * A simple pure functional console type.
+  * A simple pure functional console.
   */
 trait Console[F[_]] {
   def println(msg: String): F[Unit]
