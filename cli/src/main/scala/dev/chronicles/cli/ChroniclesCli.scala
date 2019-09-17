@@ -17,20 +17,23 @@ object ChroniclesCli extends IOApp {
     for {
       console <- Console[IO]
       config <- loadConfig(console)
-      client <- createClient(config)
+      client <- createClient(config, console)
       userId <- getUserName
-      result <- doRun(args, client, console, userId)
+      result <- run(args, client, console, userId)
     } yield result
 
-  private[cli] def doRun(
+  private[cli] def run(
       args: List[String],
       client: VersionRepositoryClient[IO],
       console: Console[IO],
       userId: UserId): IO[ExitCode] = {
 
     def parseArguments(console: Console[IO]): IO[Action] = argParser.parse(args) match {
-      case Left(help)    => console.println(help.toString).flatMap(_ => IO.raiseError(new Error("Invalid Arguments")))
-      case Right(action) => IO.pure(action)
+      case Right(action) => IO(action)
+      case Left(help) =>
+        console
+          .errorln(help.toString)
+          .flatMap(_ => IO.raiseError(new Error("Invalid Arguments")))
     }
 
     for {
@@ -44,12 +47,11 @@ object ChroniclesCli extends IOApp {
     //   Try to read config from file
     //   Try to parse the file content
 
-    IO.pure(Config())
+    IO(Config())
   }
 
-  private def createClient(config: Config): IO[VersionRepositoryClient[IO]] = {
+  private def createClient(config: Config, console: Console[IO]): IO[VersionRepositoryClient[IO]] = {
     for {
-      console <- Console[IO]
       versionTracker <- InMemoryVersionTracker[IO]
       metastore = new StubMetastore[IO]
       delegate = new VersionedMetastore(versionTracker, metastore)
