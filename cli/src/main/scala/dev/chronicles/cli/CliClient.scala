@@ -4,6 +4,7 @@ import java.time.Instant
 
 import cats.effect.{Clock, Sync}
 import cats.implicits._
+import dev.chronicles.core.VersionTracker.TableOperation.{AddPartitionVersion, RemovePartition}
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
 
@@ -13,8 +14,7 @@ import scala.concurrent.duration.{MILLISECONDS => Millis}
   * Implementation of the CLI commands, interacting with a VersionedMetastore to execute operations,
   * and showing results on the given Console.
   */
-class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], clock: Clock[F])(
-    implicit F: Sync[F]) {
+class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], clock: Clock[F])(implicit F: Sync[F]) {
 
   def executeAction(action: Action, userId: UserId): F[Unit] = action match {
     case Action.ListTables                                => listTables(console)
@@ -74,7 +74,9 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
     for {
       now <- clock.realTime(Millis).map(Instant.ofEpochMilli)
       updateMetadata = VersionTracker.TableUpdateMetadata(userId, message, now)
-      updates = Nil
+      partitionVersion <- Version.generateVersion
+      partition <- F.fromEither(Partition.parse(partitionName))
+      updates = List(AddPartitionVersion(partition, partitionVersion))
       _ <- delegate.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
       _ <- console.println(s"Added partition '$partitionName' to table '${tableName.fullyQualifiedName}'")
     } yield ()
@@ -87,7 +89,8 @@ class VersionRepositoryClient[F[_]](delegate: VersionedMetastore[F], console: Co
     for {
       now <- clock.realTime(Millis).map(Instant.ofEpochMilli)
       updateMetadata = VersionTracker.TableUpdateMetadata(userId, message, now)
-      updates = Nil // TODO!!!
+      partition <- F.fromEither(Partition.parse(partitionName))
+      updates = List(RemovePartition(partition))
       _ <- delegate.commit(tableName, VersionTracker.TableUpdate(updateMetadata, updates))
       _ <- console.println(s"Added partition '$partitionName' to table '${tableName.fullyQualifiedName}'")
     } yield ()

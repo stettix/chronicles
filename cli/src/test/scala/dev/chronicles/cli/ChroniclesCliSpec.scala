@@ -78,7 +78,7 @@ class ChroniclesCliSpec extends FlatSpec with Matchers {
   // we're just interested in what's output on the console.
   private def run(
       args: List[String],
-      client: VersionRepositoryClient[IO],
+      client: CliClient[IO],
       console: Console[IO],
       userId: UserId = UserId("user-1")): IO[Unit] =
     ChroniclesCli
@@ -86,11 +86,11 @@ class ChroniclesCliSpec extends FlatSpec with Matchers {
       .void
       .handleErrorWith(_ => IO.unit)
 
-  private def createClient(console: Console[IO], clock: Clock[IO]): IO[VersionRepositoryClient[IO]] =
+  private def createClient(console: Console[IO], clock: Clock[IO]): IO[CliClient[IO]] =
     for {
       versionTracker <- InMemoryVersionTracker[IO]
       metastore = new StubMetastore[IO]
-    } yield new VersionRepositoryClient[IO](new VersionedMetastore[IO](versionTracker, metastore), console, clock)
+    } yield new CliClient[IO](new VersionedMetastore[IO](versionTracker, metastore), console, clock)
 
   private val createClock: Clock[IO] = Clock.create[IO]
 

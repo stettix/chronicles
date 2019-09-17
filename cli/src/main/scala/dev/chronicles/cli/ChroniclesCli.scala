@@ -24,7 +24,7 @@ object ChroniclesCli extends IOApp {
 
   private[cli] def run(
       args: List[String],
-      client: VersionRepositoryClient[IO],
+      client: CliClient[IO],
       console: Console[IO],
       userId: UserId): IO[ExitCode] = {
 
@@ -50,12 +50,12 @@ object ChroniclesCli extends IOApp {
     IO(Config())
   }
 
-  private def createClient(config: Config, console: Console[IO]): IO[VersionRepositoryClient[IO]] = {
+  private def createClient(config: Config, console: Console[IO]): IO[CliClient[IO]] = {
     for {
       versionTracker <- InMemoryVersionTracker[IO]
       metastore = new StubMetastore[IO]
       delegate = new VersionedMetastore(versionTracker, metastore)
-    } yield new VersionRepositoryClient[IO](delegate, console, Clock[IO])
+    } yield new CliClient[IO](delegate, console, Clock[IO])
   }
 
   private val getUserName: IO[UserId] =
