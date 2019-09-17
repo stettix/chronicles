@@ -16,10 +16,8 @@ class StubConsole[F[_]](outputs: Ref[F, List[StubConsole.Event]])(implicit F: Sy
   override def println(msg: String): F[Unit] =
     outputs.modify(prev => (StdOut(msg) :: prev, StdOut(msg))).void
 
-  override def errorln(msg: String): F[Unit] = {
-    println(s"ERRORLN: $msg")
+  override def errorln(msg: String): F[Unit] =
     outputs.modify(prev => (StdErr(msg) :: prev, StdErr(msg))).void
-  }
 
   override def readLine(prompt: String): F[Option[String]] =
     outputs
