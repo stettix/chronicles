@@ -1,3 +1,4 @@
+import microsites.ExtraMdFileConfig
 import Shared._
 import Dependencies._
 import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
@@ -30,6 +31,15 @@ lazy val testSettings = Defaults.itSettings ++ Seq(
 
 lazy val assemblySettings = Seq(
   assemblyJarName in assembly := s"${name.value}.jar"
+)
+
+lazy val tutSettings = Seq(
+  scalacOptions in Tut ~= {
+    _.filterNot("-Ywarn-unused-import" == _)
+      .filterNot("-Xlint" == _)
+      .filterNot("-Xfatal-warnings" == _)
+  },
+  scalacOptions in Tut += "-Ydelambdafy:inline"
 )
 
 lazy val chronicles = (project in file("."))
@@ -88,3 +98,23 @@ lazy val `chronicles-examples` = project
   .settings(parallelExecution in Test := false)
   .settings(fork in Test := true)
   .dependsOn(`chronicles-core`, `chronicles-spark` % "compile->compile;test->test")
+
+lazy val microsite = project
+  .in(file("site"))
+  .enablePlugins(MicrositesPlugin)
+  .settings(commonSettings)
+  .settings(
+    micrositeName := "Chronicles",
+    micrositeDescription := "Immutable storage and version control for Big Data",
+    micrositeGithubOwner := "stettix",
+    micrositeGithubRepo := "chronicles",
+    micrositeBaseUrl := "",
+    micrositeExtraMdFiles := Map(
+      file("README.md") -> ExtraMdFileConfig(
+        "index.md",
+        "home",
+        Map("title" -> "Home", "section" -> "home", "position" -> "0")
+      )
+    )
+  )
+  .settings(tutSettings)
