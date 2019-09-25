@@ -88,6 +88,19 @@ object PartitionSchema {
 
 final case class TableName(schema: String, name: String) {
   def fullyQualifiedName: String = s"$schema.$name"
+
+  override def toString = fullyQualifiedName
+}
+
+object TableName {
+
+  def fromFullyQualifiedName(str: String): Either[Throwable, TableName] = {
+    val parts = str.split("\\.")
+    if (parts.length != 2 || parts.exists(_.isEmpty))
+      Left(new Error(s"Invalid table name: $str"))
+    else
+      Right(TableName(parts(0), parts(1)))
+  }
 }
 
 final case class TableDefinition(name: TableName, location: URI, partitionSchema: PartitionSchema, format: FileFormat) {

@@ -13,5 +13,5 @@ object TestVersionContext {
       versionTracker <- InMemoryVersionTracker[IO]
       metastore = new SparkHiveMetastore[IO]()
       versionGenerator = Version.generateVersion[IO]
-    } yield VersionContext(VersionedMetastore(versionTracker, metastore), versionGenerator)
+    } yield VersionContext(new VersionedMetastore(versionTracker, metastore), versionGenerator)
 }

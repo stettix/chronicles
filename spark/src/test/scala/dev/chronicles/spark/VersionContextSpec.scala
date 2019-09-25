@@ -117,7 +117,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
+      VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -172,7 +172,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
+      VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._
@@ -230,7 +230,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
         _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
-      VersionContext(VersionedMetastore(versionTracker, stubMetastore), generateVersion)
+      VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
     }
 
     import versionContext._

@@ -14,6 +14,11 @@ import dev.chronicles.core.VersionTracker._
 trait VersionTracker[F[_]] {
 
   /**
+    * List all known tables.
+    */
+  def tables(): F[List[TableName]]
+
+  /**
     * Start tracking version information for given table.
     * This must be called before any other operations can be performed on this table.
     */

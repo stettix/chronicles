@@ -64,4 +64,26 @@ class ModelSpec extends FlatSpec with Matchers with EitherValues with TableDrive
     }
   }
 
+  "Parsing a fully qualified name" should "produce a table name for a valid value" in {
+    TableName.fromFullyQualifiedName("schema.table") shouldBe Right(TableName("schema", "table"))
+  }
+
+  it should "return an error for invalid strings" in {
+    val invalidTableNames = Table(
+      ("tableName"),
+      "",
+      "foo",
+      "foo.bar.baz",
+      "foo.",
+      ".foo"
+    )
+
+    forAll(invalidTableNames) { tableName =>
+      val parseResult = TableName.fromFullyQualifiedName(tableName)
+      parseResult.isLeft shouldBe true
+      parseResult.left.get.getMessage should include(tableName)
+    }
+
+  }
+
 }

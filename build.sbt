@@ -45,6 +45,10 @@ lazy val `chronicles-core` = project
 lazy val `chronicles-cli` = project
   .in(file("cli"))
   .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.monovore" %% "decline" % "0.5.0"
+    ))
   .dependsOn(`chronicles-core`)
 
 lazy val `chronicles-spark` = project

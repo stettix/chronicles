@@ -13,6 +13,11 @@ import dev.chronicles.core.util.RichRef._
 class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(implicit F: Sync[F])
     extends VersionTracker[F] {
 
+  override def tables(): F[List[TableName]] =
+    for {
+      allTableUpdates <- allUpdates.get
+    } yield allTableUpdates.keys.toList
+
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
     val applyUpdate: TableUpdates => Either[Exception, TableUpdates] = { currentTableUpdates =>
       currentTableUpdates.get(table).fold[Either[Exception, TableUpdates]](Left(unknownTableError(table))) {
@@ -56,6 +61,7 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
         prev + (table -> newTableState)
       }
     }
+
 }
 
 object InMemoryVersionTracker {

@@ -23,6 +23,8 @@ final case class Version(timestamp: Instant, uuid: UUID) {
     s"$timestampStr-$versionString"
   }
 
+  override def toString = label
+
 }
 
 object Version {

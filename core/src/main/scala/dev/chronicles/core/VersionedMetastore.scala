@@ -11,7 +11,13 @@ import dev.chronicles.core.VersionTracker._
   * High level API for table version tracking, that aggregates the functionality from VersionTracker and Metastore
   * in order to provide its functionality.
   */
-final case class VersionedMetastore[F[_]: Sync](versionTracker: VersionTracker[F], metastore: Metastore[F]) {
+final class VersionedMetastore[F[_]: Sync](versionTracker: VersionTracker[F], metastore: Metastore[F]) {
+
+  /**
+    * List all known tables.
+    */
+  def tables(): F[List[TableName]] =
+    versionTracker.tables()
 
   /**
     * Start tracking version information for given table.
