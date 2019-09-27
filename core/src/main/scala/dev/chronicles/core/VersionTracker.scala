@@ -71,7 +71,7 @@ trait VersionTracker[F[_]] {
   /**
     * Handle initialisation of a new table if it doesn't exist already.
     */
-  protected def handleInit(table: TableName)(newTableState: => TableState): F[Unit]
+  protected def handleInit(table: TableName)(initialTableState: => TableState): F[Unit]
 
 }
 

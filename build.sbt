@@ -42,6 +42,16 @@ lazy val `chronicles-core` = project
   .settings(commonSettings)
   .settings(libraryDependencies ++= catsDependencies)
 
+lazy val `chronicles-db` = project
+  .in(file("db"))
+  .configs(IntegrationTest)
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= catsDependencies ++ doobieDependencies ++ Seq(
+      "com.h2database" % "h2" % "1.4.199" % IntegrationTest
+    ))
+  .dependsOn(`chronicles-core`)
+
 lazy val `chronicles-cli` = project
   .in(file("cli"))
   .settings(commonSettings)
