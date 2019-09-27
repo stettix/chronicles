@@ -63,7 +63,7 @@ class DbVersionTracker[F[_]](tx: Transactor[F])(implicit cs: ContextShift[F], F:
            |)
            |""".stripMargin.update.run
 
-    val createTables = createTablesTable >> createUpdatesTable >> createVersionRefsTable
+    val createTables = createTablesTable >> createUpdatesTable >> createOperationsTable >> createVersionRefsTable
 
     createTables.transact(tx).void
   }
