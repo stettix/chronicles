@@ -87,23 +87,23 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
       message: VersionTracker.UpdateMessage,
       timestamp: Instant): F[Unit] = {
 
-    val tableExistsQuery: doobie.ConnectionIO[Long] =
+    val tableExistsQuery =
       sql"""select count(*) from `chronicle_tables_v1` where table_name = ${table.fullyQualifiedName}"""
         .query[Long]
         .unique
 
-    val addTableQuery: doobie.ConnectionIO[Int] = {
+    val addTableQuery = {
       val metastoreId = "default"
       sql"""insert into `chronicle_tables_v1` (metastore_id, table_name, creation_time, created_by, message, is_snapshot_table)
            |  values ($metastoreId, ${table.fullyQualifiedName}, $timestamp, ${userId.value}, ${message.content}, $isSnapshot)
-           |  """.stripMargin.update.run
+           |  """.stripMargin.update.run.void
     }
 
     // Add table if it doesn't exist already
     val addIfNotExists = for {
       existingCount <- tableExistsQuery
-      count <- if (existingCount == 0) addTableQuery else 42.pure[ConnectionIO]
-    } yield count
+      _ <- if (existingCount == 0) addTableQuery else Unit.pure[ConnectionIO]
+    } yield ()
 
     addIfNotExists.transact(xa).void
   }
