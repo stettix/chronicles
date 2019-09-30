@@ -50,7 +50,7 @@ lazy val `chronicles-db` = project
     libraryDependencies ++= catsDependencies ++ doobieDependencies ++ Seq(
       "com.h2database" % "h2" % "1.4.199" % IntegrationTest
     ))
-  .dependsOn(`chronicles-core`)
+  .dependsOn(`chronicles-core` % "compile->compile;test->test;it->test")
 
 lazy val `chronicles-cli` = project
   .in(file("cli"))

@@ -1,23 +1,23 @@
 package dev.chronicles.db
 
+import java.time.Instant
+
+import cats.effect._
+import cats.implicits._
 import dev.chronicles.core.{TableName, VersionTracker}
 import doobie._
 import doobie.implicits._
-import cats._
-import cats.effect._
-import cats.implicits._
 
 /**
   * This stores version history in a JDBC compatible database.
   */
-class DbVersionTracker[F[_]](tx: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
+class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
     extends VersionTracker[F] {
 
   /**
     * Create table schemas if not already present.
     */
   def init(): F[Unit] = {
-    // TODO: Move these queries to resources? Or just constants? => The latter for compile time checks
     val createTablesTable =
       sql"""create table if not exists `chronicle_tables_v1` (
            |  metastore_id                varchar(32),
@@ -65,11 +65,48 @@ class DbVersionTracker[F[_]](tx: Transactor[F])(implicit cs: ContextShift[F], F:
 
     val createTables = createTablesTable >> createUpdatesTable >> createOperationsTable >> createVersionRefsTable
 
-    createTables.transact(tx).void
+    createTables.transact(xa).void
   }
 
-  override def tables(): F[List[TableName]] =
-    ???
+  override def tables(): F[List[TableName]] = {
+    val rawTableNames = DbVersionTracker.allTablesQuery
+      .query[String]
+      .to[List]
+      .transact(xa)
+
+    for {
+      tableNameStrings <- rawTableNames
+      tableNames <- F.fromEither(tableNameStrings.map(TableName.fromFullyQualifiedName).sequence)
+    } yield tableNames
+  }
+
+  override def init(
+      table: TableName,
+      isSnapshot: Boolean,
+      userId: VersionTracker.UserId,
+      message: VersionTracker.UpdateMessage,
+      timestamp: Instant): F[Unit] = {
+
+    val tableExistsQuery: doobie.ConnectionIO[Long] =
+      sql"""select count(*) from `chronicle_tables_v1` where table_name = ${table.fullyQualifiedName}"""
+        .query[Long]
+        .unique
+
+    val addTableQuery: doobie.ConnectionIO[Int] = {
+      val metastoreId = "default"
+      sql"""insert into `chronicle_tables_v1` (metastore_id, table_name, creation_time, created_by, message, is_snapshot_table)
+           |  values ($metastoreId, ${table.fullyQualifiedName}, $timestamp, ${userId.value}, ${message.content}, $isSnapshot)
+           |  """.stripMargin.update.run
+    }
+
+    // Add table if it doesn't exist already
+    val addIfNotExists = for {
+      existingCount <- tableExistsQuery
+      count <- if (existingCount == 0) addTableQuery else 42.pure[ConnectionIO]
+    } yield count
+
+    addIfNotExists.transact(xa).void
+  }
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] =
     ???
@@ -80,9 +117,11 @@ class DbVersionTracker[F[_]](tx: Transactor[F])(implicit cs: ContextShift[F], F:
   override protected def tableState(table: TableName): F[VersionTracker.TableState] =
     ???
 
-  override protected def handleInit(table: TableName)(newTableState: => VersionTracker.TableState): F[Unit] =
-    ???
-
 }
 
-object DbVersionTracker {}
+object DbVersionTracker {
+
+  val allTablesQuery =
+    sql"""select table_name from `chronicle_tables_v1`"""
+
+}
