@@ -26,7 +26,6 @@ trait VersionTrackerSpec {
   def versionTrackerBehaviour(initialVersionTracker: IO[VersionTracker[IO]]): Unit = {
 
     val table = TableName("schema", "table")
-    val table2 = TableName("schema", "table2")
 
     val userId = UserId("Test user")
     val date = PartitionColumn("date")

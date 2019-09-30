@@ -22,11 +22,7 @@ trait VersionTracker[F[_]] {
     * Start tracking version information for given table.
     * This must be called before any other operations can be performed on this table.
     */
-  def init(table: TableName, isSnapshot: Boolean, userId: UserId, message: UpdateMessage, timestamp: Instant): F[Unit] =
-    handleInit(table) {
-      val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
-      TableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
-    }
+  def init(table: TableName, isSnapshot: Boolean, userId: UserId, message: UpdateMessage, timestamp: Instant): F[Unit]
 
   /**
     * Get details about partition versions in a table.
@@ -67,11 +63,6 @@ trait VersionTracker[F[_]] {
     * Produce description of the current state of table.
     */
   protected def tableState(table: TableName): F[TableState]
-
-  /**
-    * Handle initialisation of a new table if it doesn't exist already.
-    */
-  protected def handleInit(table: TableName)(initialTableState: => TableState): F[Unit]
 
 }
 
