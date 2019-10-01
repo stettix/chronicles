@@ -32,7 +32,7 @@ class TableLoader[T <: Product: TypeTag](
     spark.sql(createTableDdl)
 
     // Initialise version tracking for table
-    versionContext.metastore.init(table.name, isSnapshot, userId, message, Instant.now()).unsafeRunSync()
+    versionContext.metastore.initTable(table.name, isSnapshot, userId, message, Instant.now()).unsafeRunSync()
   }
 
   def data(): Dataset[T] =
