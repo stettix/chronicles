@@ -23,16 +23,8 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
   /**
     * Create table schemas if not already present.
     */
-  def init(): F[Unit] = {
-
-    val createTables =
-      createTablesTable.run *>
-        createUpdatesTable.run *>
-        createOperationsTable.run *>
-        createVersionRefsTable.run
-
-    createTables.transact(xa).void
-  }
+  def init(): F[Unit] =
+    initTables(xa)
 
   override def tables(): F[List[TableName]] = {
     val rawTableNames = DbVersionTracker.allTablesQuery
@@ -142,11 +134,22 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
 
 object DbVersionTracker {
 
+  def initTables[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): F[Unit] = {
+
+    val createTables =
+      createTablesTable.run *>
+        createUpdatesTable.run *>
+        createOperationsTable.run *>
+        createVersionRefsTable.run
+
+    createTables.transact(xa).void
+  }
+
   val createTablesTable =
     sql"""create table if not exists `chronicle_tables_v1` (
          |  metastore_id                varchar(32),
          |  table_name                  varchar(512),
-         |  init_commit_id              varchar(36),
+         |  init_commit_id              varchar(36) not null,
          |  creation_time               timestamp not null,
          |  created_by                  varchar(32) not null,
          |  message                     varchar(4096) not null,
@@ -173,7 +176,7 @@ object DbVersionTracker {
     sql"""create table if not exists `chronicle_table_operations_v1` (
          |  commit_id                   varchar(36),
          |  index_in_commit             int not null,
-         |  operation_type              enum('update_table_version', 'add_part_version', 'remove_part') not null,
+         |  operation_type              varchar(20) not null,
          |  version                     varchar(62) not null,
          |  partition                   varchar(1024) not null,
          |  primary key (commit_id),
