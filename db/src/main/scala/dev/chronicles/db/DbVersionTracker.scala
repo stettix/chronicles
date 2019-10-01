@@ -210,15 +210,15 @@ object DbVersionTracker {
 
   def updatesQuery(table: TableName) =
     sql"""select
-         |       u.commit_id, u.update_time, u.user_id, u.message,
-         |       o.operation_type, o.version, o.partition
-         |     from chronicle_tables_v1 t
-         |       inner join chronicle_table_updates_v1 u
-         |     on t.metastore_id = u.metastore_id and t.table_name = u.table_name
-         |       inner join chronicle_table_operations_v1 o
-         |     on u.commit_id = o.commit_id
-         |     where t.table_name = ${table.fullyQualifiedName}
-         |     order by u.sequence_id, o.index_in_commit
+         |    u.commit_id, u.update_time, u.user_id, u.message,
+         |    o.operation_type, o.version, o.partition
+         |  from chronicle_tables_v1 t
+         |    inner join chronicle_table_updates_v1 u
+         |  on t.metastore_id = u.metastore_id and t.table_name = u.table_name
+         |    inner join chronicle_table_operations_v1 o
+         |  on u.commit_id = o.commit_id
+         |  where t.table_name = ${table.fullyQualifiedName}
+         |  order by u.sequence_id, o.index_in_commit
          |""".stripMargin
       .query[(String, Instant, String, String, String, String, String)]
 
