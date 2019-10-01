@@ -39,10 +39,10 @@ trait VersionTrackerSpec {
 
         tablesBeforeInit <- versionTracker.tables()
 
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init table 1"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init table 1"), Instant.now())
         tables1 <- versionTracker.tables()
 
-        _ <- versionTracker.init(table2, isSnapshot = false, userId, UpdateMessage("init table 2"), Instant.now())
+        _ <- versionTracker.initTable(table2, isSnapshot = false, userId, UpdateMessage("init table 2"), Instant.now())
         tables2 <- versionTracker.tables()
 
       } yield (tablesBeforeInit, tables1, tables2)
@@ -58,13 +58,13 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init1"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init1"), Instant.now())
         tableVersion1 <- versionTracker.currentVersion(table)
 
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init2"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init2"), Instant.now())
         tableVersion2 <- versionTracker.currentVersion(table)
 
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init3"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init3"), Instant.now())
         tableVersion3 <- versionTracker.currentVersion(table)
 
       } yield (tableVersion1, tableVersion2, tableVersion3)
@@ -90,7 +90,7 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
 
         initialTableVersion <- versionTracker.currentVersion(table)
 
@@ -137,7 +137,7 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
 
         // Add some partitions
         _ <- versionTracker.commit(
@@ -193,7 +193,7 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
         initialTableVersion <- versionTracker.currentVersion(table)
 
         commitResult1 <- versionTracker.commit(table,
@@ -241,7 +241,7 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = false, userId, UpdateMessage("init"), timestamp(0))
+        _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init"), timestamp(0))
 
         historyAfterInit <- versionTracker.updates(table)
 
@@ -329,7 +329,7 @@ trait VersionTrackerSpec {
 
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
         historyAfterInit <- versionTracker.updates(table)
 
@@ -404,7 +404,7 @@ trait VersionTrackerSpec {
     it should "return updates in the same order as they were committed, but with the most recent first" in {
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
         // Generate some updates
         indexedVersions <- (1 to 100).map(n => Version.generateVersion[IO].map(v => n -> v)).toList.sequence
@@ -478,7 +478,7 @@ trait VersionTrackerSpec {
     it should "return an error if trying to set the version of a table to an unknown commit ID" in {
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.init(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+        _ <- versionTracker.initTable(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
         _ <- versionTracker.setCurrentVersion(table, CommitId("unknown-commit-id"))
 

@@ -1,7 +1,6 @@
 package dev.chronicles.db
 
 import cats.effect.IO
-import cats.implicits._
 import dev.chronicles.core.VersionTrackerSpec
 import doobie.util.transactor.Transactor
 import doobie.util.transactor.Transactor.Aux

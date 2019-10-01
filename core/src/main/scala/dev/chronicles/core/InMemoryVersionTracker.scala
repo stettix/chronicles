@@ -57,7 +57,7 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
       tableState <- F.fromOption(allTableUpdates.get(table), unknownTableError(table))
     } yield tableState
 
-  override def init(
+  override def initTable(
       table: TableName,
       isSnapshot: Boolean,
       userId: UserId,

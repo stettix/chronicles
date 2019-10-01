@@ -12,6 +12,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.12",
   scalacOptions ++= scala211CompilerFlags,
   scalafmtOnCompile := true,
+  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
   libraryDependencies ++= Seq(
     scalatest % Test,
     "org.scalacheck" %% "scalacheck" % "1.14.0" % Test

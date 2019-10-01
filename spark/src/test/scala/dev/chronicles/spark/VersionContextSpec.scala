@@ -114,7 +114,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
       val versionTracker: VersionTracker[IO] = (for {
         t <- InMemoryVersionTracker[IO]
-        _ <- t.init(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
+        _ <- t.initTable(usersTable.name, isSnapshot = true, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
       VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
@@ -169,7 +169,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
       val versionTracker: VersionTracker[IO] = (for {
         t <- InMemoryVersionTracker[IO]
-        _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
+        _ <- t.initTable(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
       VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
@@ -227,7 +227,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
       val versionTracker: VersionTracker[IO] = (for {
         t <- InMemoryVersionTracker[IO]
-        _ <- t.init(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
+        _ <- t.initTable(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
       } yield t).unsafeRunSync()
 
       VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
