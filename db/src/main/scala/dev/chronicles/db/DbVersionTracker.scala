@@ -95,7 +95,8 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
         .map { case (metadata, updates) => metadata -> updates.toList.flatMap(_.operations) }
 
     val tableState = for {
-      currentVersion <- currentVersionQuery(table).unique
+      maybeCurrentVersion <- currentVersionQuery(table).option
+      currentVersion <- liftOrError(maybeCurrentVersion, unknownTableError(table))
       updates <- updatesStream.compile.toList
       tableUpdates = updates.map { case (metadata, updates) => TableUpdate(metadata, updates) }
     } yield TableState(currentVersion, tableUpdates)
@@ -110,18 +111,25 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
     val currentVersionUpdate = updateCurrentVersionUpdate(table, id)
     val operations = updatesForOperations(id, update.operations)
 
-    val allUpdates = (tableUpdate :: currentVersionUpdate :: operations).traverse(_.run)
+    val performUpdates = (tableUpdate :: currentVersionUpdate :: operations).traverse(_.run)
 
-    allUpdates.transact(xa).void
+    val io = for {
+      t <- tableMetadataQuery(table).map(_._1).option
+      _ <- liftOrError(t, unknownTableError(table))
+
+      _ <- performUpdates
+    } yield ()
+
+    io.transact(xa).void
   }
 
   override def setCurrentVersion(table: TableName, commitId: VersionTracker.CommitId): F[Unit] = {
     val io = for {
       t <- tableMetadataQuery(table).map(_._1).option
-      _ <- errorIfUndefined(t, unknownTableError(table))
+      _ <- liftOrError(t, unknownTableError(table))
 
       c <- getCommit(commitId).option
-      _ <- errorIfUndefined(c, unknownCommitId(commitId))
+      _ <- liftOrError(c, unknownCommitId(commitId))
 
       _ <- updateCurrentVersionUpdate(table, commitId).run
     } yield ()
@@ -133,8 +141,8 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
 
 object DbVersionTracker {
 
-  def errorIfUndefined[A](a: Option[A], error: => Throwable): ConnectionIO[Unit] =
-    if (a.isDefined) ().pure[ConnectionIO] else error.raiseError[ConnectionIO, Unit]
+  def liftOrError[A](a: Option[A], error: => Throwable): ConnectionIO[A] =
+    a.map(_.pure[ConnectionIO]).getOrElse(error.raiseError[ConnectionIO, A])
 
   def initTables[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): F[Unit] = {
 
