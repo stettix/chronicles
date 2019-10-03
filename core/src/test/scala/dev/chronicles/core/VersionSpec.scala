@@ -21,6 +21,12 @@ class VersionSpec extends FlatSpec with Matchers with EitherValues with Property
     versions.distinct.size shouldBe versions.size
   }
 
+  it should "produce a defined label for the 'unversioned' case" in {
+    // Note: this can be removed when https://github.com/stettix/chronicles/issues/22 is fixed
+    Version.Unversioned.label shouldBe ""
+    Version.parse(Version.Unversioned.label) shouldBe Right(Version.Unversioned)
+  }
+
   "The label format regex" should "match valid labels" in {
     val validVersionLabel = "20181102-235900.123456789-4920d06f-2233-4b4a-9521-8e730eee89c5"
     validVersionLabel should fullyMatch regex Version.TimestampAndUuidRegex
