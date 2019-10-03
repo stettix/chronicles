@@ -18,8 +18,6 @@ import fs2.Stream
 class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
     extends VersionTracker[F] {
 
-  implicit val han = LogHandler.jdkLogHandler
-
   import DbVersionTracker._
 
   /**
@@ -122,14 +120,26 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
     allUpdates.transact(xa).void
   }
 
-  override def setCurrentVersion(table: TableName, commitId: VersionTracker.CommitId): F[Unit] =
-    updateCurrentVersionUpdate(table, commitId).run
-      .transact(xa)
-      .void
+  override def setCurrentVersion(table: TableName, commitId: VersionTracker.CommitId): F[Unit] = {
+    val io = for {
+      t <- tableMetadataQuery(table).map(_._1).option
+      _ <- errorIfUndefined(t, unknownTableError(table))
+
+      c <- getCommit(commitId).option
+      _ <- errorIfUndefined(c, unknownCommitId(commitId))
+
+      _ <- updateCurrentVersionUpdate(table, commitId).run
+    } yield ()
+
+    io.transact(xa)
+  }
 
 }
 
 object DbVersionTracker {
+
+  def errorIfUndefined[A](a: Option[A], error: => Throwable): ConnectionIO[Unit] =
+    if (a.isDefined) ().pure[ConnectionIO] else error.raiseError[ConnectionIO, Unit]
 
   def initTables[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): F[Unit] = {
 
@@ -203,7 +213,7 @@ object DbVersionTracker {
       message: UpdateMessage,
       isSnapshot: Boolean) =
     sql"""insert into `chronicle_tables_v1` (metastore_id, table_name, init_commit_id, creation_time, created_by, message, is_snapshot_table)
-         |  values ('default', ${table.fullyQualifiedName}, $commitId, $createTime, $userId, $message, $isSnapshot)
+         |  values ('default', ${table.fullyQualifiedName}, ${commitId.id}, $createTime, ${userId.value}, ${message.content}, $isSnapshot)
          |  """.stripMargin.update
 
   def addTableUpdateUpdate(
@@ -214,7 +224,7 @@ object DbVersionTracker {
       message: UpdateMessage
   ) =
     sql"""insert into `chronicle_table_updates_v1` (commit_id, metastore_id, table_name, update_time, user_id, message)
-         |  values ($commitId, 'default', ${table.fullyQualifiedName}, $updateTime, $userId, $message)
+         |  values (${commitId.id}, 'default', ${table.fullyQualifiedName}, $updateTime, ${userId.value}, ${message.content})
          |""".stripMargin.update
 
   def addOperationUpdate(
@@ -225,7 +235,7 @@ object DbVersionTracker {
       partition: Option[Partition]
   ) =
     sql"""insert into `chronicle_table_operations_v1` (commit_id, index_in_commit, operation_type, version, partition)
-         |  values ($commitId, $indexInCommit, $operationType, ${version.map(_.label)}, ${partition.map(_.toString)})
+         |  values (${commitId.id}, $indexInCommit, $operationType, ${version.map(_.label)}, ${partition.map(_.toString)})
          |""".stripMargin.update
 
   def tableCountQuery(table: TableName) =
@@ -261,14 +271,20 @@ object DbVersionTracker {
 
   def initialiseCurrentVersionUpdate(table: TableName, commitId: CommitId) =
     sql"""insert into `chronicles_version_refs_v1` (metastore_id, table_name, current_version)
-         |  values('default', ${table.fullyQualifiedName}, $commitId)
+         |  values('default', ${table.fullyQualifiedName}, ${commitId.id})
          |""".stripMargin.update
 
   def updateCurrentVersionUpdate(table: TableName, commitId: CommitId) =
     sql"""update`chronicles_version_refs_v1`
-         |  set `current_version` = $commitId
+         |  set `current_version` = ${commitId.id}
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.update
+
+  def getCommit(commitId: CommitId) =
+    sql"""select table_name, update_time, user_id, message
+         |  from `chronicle_table_updates_v1`
+         |  where commit_id = ${commitId.id}
+         |""".stripMargin.query[(String, Instant, String, String)]
 
   private def typedOperation(
       op: String,
