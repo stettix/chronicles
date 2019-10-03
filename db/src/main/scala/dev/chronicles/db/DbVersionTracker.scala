@@ -171,9 +171,9 @@ object DbVersionTracker {
   val createUpdatesTable =
     sql"""create table if not exists `chronicle_table_updates_v1` (
          |  sequence_id                 long generated always as identity,
-         |  commit_id                   varchar(36),
-         |  metastore_id                varchar(32),
-         |  table_name                  varchar(512),
+         |  commit_id                   varchar(36) not null,
+         |  metastore_id                varchar(32) not null,
+         |  table_name                  varchar(512) not null,
          |  update_time                 timestamp not null,
          |  user_id                     varchar(32) not null,
          |  message                     varchar(4096) not null,
