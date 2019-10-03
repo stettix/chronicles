@@ -38,6 +38,6 @@ class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie
   "updateCurrentVersionUpdate" should "be valid" in {
     check(DbVersionTracker.updateCurrentVersionUpdate(table, CommitId("id")))
   }
-  "getCommit" should "be valid" in { check(DbVersionTracker.updateCurrentVersionUpdate(table, CommitId("id"))) }
+  "getCommit" should "be valid" in { check(DbVersionTracker.getCommit(CommitId("id"))) }
 
 }
