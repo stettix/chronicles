@@ -14,6 +14,9 @@ import fs2.Stream
 
 /**
   * This stores version history in a JDBC compatible database.
+  *
+  * Note: the transactor used with this class has to be configured to use a 'serializable' transaction isolation
+  * strategy. This is because the implementation relies on performing multiple queries per transactions.
   */
 class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
     extends VersionTracker[F] {
@@ -26,16 +29,12 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
   def init(): F[Unit] =
     initTables(xa)
 
-  override def tables(): F[List[TableName]] = {
-    val rawTableNames = DbVersionTracker.getAllTables
+  override def tables(): F[List[TableName]] =
+    DbVersionTracker.getAllTables
       .to[List]
+      .map(_.traverse(TableName.fromFullyQualifiedName))
       .transact(xa)
-
-    for {
-      tableNameStrings <- rawTableNames
-      tableNames <- F.fromEither(tableNameStrings.traverse(TableName.fromFullyQualifiedName))
-    } yield tableNames
-  }
+      .flatMap(F.fromEither)
 
   override def initTable(
       table: TableName,
