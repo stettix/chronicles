@@ -168,6 +168,6 @@ object VersionTracker {
 
   def unknownTableError(table: TableName): Exception = new Exception(s"Unknown table '${table.fullyQualifiedName}'")
 
-  def unknownCommitId(id: CommitId): Exception = new Exception(s"Unknown commit ID '$id'")
+  def unknownCommitId(id: CommitId): Exception = new Exception(s"Unknown commit ID '${id.id}'")
 
 }
