@@ -201,6 +201,7 @@ object DbVersionTracker {
          |  table_name                  varchar(512),
          |  current_version             varchar(62) not null,
          |  primary key (metastore_id, table_name),
+         |  constraint fk_chronicles_version_refs_v1_to_updates foreign key (current_version) references chronicle_table_updates_v1(commit_id),
          |  constraint fk_chronicles_version_refs_v1_to_table foreign key (metastore_id, table_name) references chronicle_tables_v1(metastore_id, table_name)
          |)
          |""".stripMargin.update
