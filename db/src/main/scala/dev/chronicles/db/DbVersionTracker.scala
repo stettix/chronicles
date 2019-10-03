@@ -44,66 +44,61 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
       message: VersionTracker.UpdateMessage,
       timestamp: Instant): F[Unit] = {
 
-    val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
+    val initOperation = InitTable(table, isSnapshot)
+    val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(initOperation))
+
+    val insertInitialState = List(
+      addTableUpdate(table, initialUpdate.metadata.id, timestamp, userId, message, isSnapshot),
+      addTableUpdateUpdate(initialUpdate.metadata.id, table, timestamp, userId, message),
+      updateForOperation(initialUpdate.metadata.id, initOperation, 0),
+      initialiseCurrentVersionUpdate(table, initialUpdate.metadata.id)
+    ).traverse(_.run.void)
 
     // Add table if it doesn't exist already
     val addTableIfNotExists = for {
       existingCount <- DbVersionTracker.tableCountQuery(table).unique
-      _ <- if (existingCount == 0)
-        addTableUpdate(table, initialUpdate.metadata.id, timestamp, userId, message, isSnapshot).run.void >>
-          initialiseCurrentVersionUpdate(table, initialUpdate.metadata.id).run.void
-      else
-        Unit.pure[ConnectionIO]
+      _ <- if (existingCount == 0) insertInitialState else Unit.pure[ConnectionIO]
     } yield ()
 
     addTableIfNotExists.transact(xa).void
   }
 
   override protected def tableState(table: TableName): F[VersionTracker.TableState] = {
-    // First get the metadata for the 'init' operation, by querying table metadata.
-    // Make this query produce an error if the table isn't found, using the 'unique' operation on the query.
 
-    val initialTableUpdate: ConnectionIO[TableUpdate] = for {
-      (initCommitId, creationTime, createdBy, message, isSnapshot) <- tableMetadataQuery(table).unique
-      metadata = TableUpdateMetadata(CommitId(initCommitId), UserId(createdBy), UpdateMessage(message), creationTime)
-    } yield TableUpdate(metadata, operations = List(InitTable(table, isSnapshot)))
-
-    // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
-    // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
-
-    def toUpdate(
+    def toTableUpdate(
         commitId: String,
         creationTime: Instant,
         createdBy: String,
         message: String,
         operationType: String,
         versionStr: Option[String],
-        partitionStr: Option[String]
+        partitionStr: Option[String],
+        tableNameStr: Option[String],
+        isSnapshot: Option[Boolean]
     ): Either[Throwable, TableUpdate] = {
       for {
         version <- versionStr.traverse(Version.parse)
         partition <- partitionStr.traverse(Partition.parse)
-        operation <- typedOperation(operationType, version, partition)
+        tableName <- tableNameStr.traverse(TableName.fromFullyQualifiedName)
+        operation <- typedOperation(operationType, version, partition, tableName, isSnapshot)
         metadata = TableUpdateMetadata(CommitId(commitId), UserId(createdBy), UpdateMessage(message), creationTime)
       } yield TableUpdate(metadata, operations = List(operation))
     }
 
+    // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
+    // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
     val updatesStream =
       updatesQuery(table).stream
-        .map((toUpdate _).tupled)
+        .map((toTableUpdate _).tupled)
         .flatMap(Stream.fromEither[ConnectionIO](_))
         .groupAdjacentBy(_.metadata)(Eq.fromUniversalEquals[TableUpdateMetadata])
         .map { case (metadata, updates) => metadata -> updates.toList.flatMap(_.operations) }
 
-    val allUpdatesStream =
-      Stream.eval(initialTableUpdate).map(update => update.metadata -> update.operations) ++ updatesStream
-
     val tableState = for {
-      initialUpdate <- initialTableUpdate
-      currentVersion <- currentVersionQuery(table).option
-      updates <- allUpdatesStream.compile.toList
+      currentVersion <- currentVersionQuery(table).unique
+      updates <- updatesStream.compile.toList
       tableUpdates = updates.map { case (metadata, updates) => TableUpdate(metadata, updates) }
-    } yield TableState(currentVersion.getOrElse(initialUpdate.metadata.id), tableUpdates)
+    } yield TableState(currentVersion, tableUpdates)
 
     tableState.transact(xa)
   }
@@ -186,6 +181,8 @@ object DbVersionTracker {
          |  operation_type              varchar(20) not null,
          |  version                     varchar(62),
          |  partition                   varchar(1024),
+         |  table_name                  varchar(512),
+         |  is_snapshot_table           boolean,
          |  primary key (commit_id, index_in_commit),
          |  constraint fk_chronicle_table_operations_v1_to_updates foreign key (commit_id) references chronicle_table_updates_v1(commit_id)
          |)
@@ -232,10 +229,13 @@ object DbVersionTracker {
       indexInCommit: Int,
       operationType: String,
       version: Option[Version],
-      partition: Option[Partition]
+      partition: Option[Partition],
+      tableName: Option[TableName] = None,
+      isSnapshot: Option[Boolean] = None
   ) =
-    sql"""insert into `chronicle_table_operations_v1` (commit_id, index_in_commit, operation_type, version, partition)
-         |  values (${commitId.id}, $indexInCommit, $operationType, ${version.map(_.label)}, ${partition.map(_.toString)})
+    sql"""insert into `chronicle_table_operations_v1` (commit_id, index_in_commit, operation_type, version, partition, table_name, is_snapshot_table)
+         |  values (${commitId.id}, $indexInCommit, $operationType, ${version.map(_.label)}, ${partition.map(_.toString)}, ${tableName
+           .map(_.fullyQualifiedName)}, $isSnapshot)
          |""".stripMargin.update
 
   def tableCountQuery(table: TableName) =
@@ -252,7 +252,7 @@ object DbVersionTracker {
   def updatesQuery(table: TableName) =
     sql"""select
          |    u.commit_id, u.update_time, u.user_id, u.message,
-         |    o.operation_type, o.version, o.partition
+         |    o.operation_type, o.version, o.partition, o.table_name, o.is_snapshot_table
          |  from chronicle_tables_v1 t
          |    inner join chronicle_table_updates_v1 u
          |  on t.metastore_id = u.metastore_id and t.table_name = u.table_name
@@ -261,7 +261,7 @@ object DbVersionTracker {
          |  where t.table_name = ${table.fullyQualifiedName}
          |  order by u.sequence_id, o.index_in_commit
          |""".stripMargin
-      .query[(String, Instant, String, String, String, Option[String], Option[String])]
+      .query[(String, Instant, String, String, String, Option[String], Option[String], Option[String], Option[Boolean])]
 
   def currentVersionQuery(table: TableName) =
     sql"""select current_version
@@ -289,22 +289,30 @@ object DbVersionTracker {
   private def typedOperation(
       op: String,
       version: Option[Version],
-      partition: Option[Partition]): Either[Throwable, TableOperation] = (op, version, partition) match {
-    case ("add_table_version", Some(version), _)              => AddTableVersion(version).asRight
-    case ("add_part_version", Some(version), Some(partition)) => AddPartitionVersion(partition, version).asRight
-    case ("remove_part", _, Some(partition))                  => RemovePartition(partition).asRight
-    case _                                                    => new Error(s"Found invalid operation '$op', version=$version, partition=$partition").asLeft
-  }
+      partition: Option[Partition],
+      tableName: Option[TableName],
+      isSnapshot: Option[Boolean]): Either[Throwable, TableOperation] =
+    (op, version, partition, tableName, isSnapshot) match {
+      case ("add_table_version", Some(version), _, _, _)              => AddTableVersion(version).asRight
+      case ("add_part_version", Some(version), Some(partition), _, _) => AddPartitionVersion(partition, version).asRight
+      case ("remove_part", _, Some(partition), _, _)                  => RemovePartition(partition).asRight
+      case ("init_table", _, _, Some(table), Some(snapshot))          => InitTable(table, snapshot).asRight
+      case _                                                          => new Error(s"Found invalid operation '$op', version=$version, partition=$partition").asLeft
+    }
 
   private def updatesForOperations(commitId: CommitId, operations: List[TableOperation]): List[Update0] =
-    operations.zipWithIndex.flatMap {
-      case (AddTableVersion(version), idx) =>
-        addOperationUpdate(commitId, idx, "add_table_version", Some(version), None).some
-      case (AddPartitionVersion(partition, version), idx) =>
-        addOperationUpdate(commitId, idx, "add_part_version", Some(version), Some(partition)).some
-      case (RemovePartition(partition), idx) =>
-        addOperationUpdate(commitId, idx, "remove_part", None, Some(partition)).some
-      case (_: InitTable, _) => None
+    operations.zipWithIndex.map { case (op, idx) => updateForOperation(commitId, op, idx) }
+
+  private def updateForOperation(commitId: CommitId, operation: TableOperation, index: Int): Update0 =
+    operation match {
+      case AddTableVersion(version) =>
+        addOperationUpdate(commitId, index, "add_table_version", Some(version), None)
+      case AddPartitionVersion(partition, version) =>
+        addOperationUpdate(commitId, index, "add_part_version", Some(version), Some(partition))
+      case RemovePartition(partition) =>
+        addOperationUpdate(commitId, index, "remove_part", None, Some(partition))
+      case InitTable(tableName, isSnapshot) =>
+        addOperationUpdate(commitId, index, "init_table", None, None, Some(tableName), Some(isSnapshot))
     }
 
 }
