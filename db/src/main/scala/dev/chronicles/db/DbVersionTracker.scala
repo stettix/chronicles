@@ -94,8 +94,7 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
         .map { case (metadata, updates) => metadata -> updates.toList.flatMap(_.operations) }
 
     val tableState = for {
-      maybeCurrentVersion <- getCurrentVersion(table).option
-      currentVersion <- liftOrError(maybeCurrentVersion, unknownTableError(table))
+      currentVersion <- getCurrentVersion(table).option >>= liftOrError(unknownTableError(table))
       updates <- updatesStream.compile.toList
       tableUpdates = updates.map { case (metadata, updates) => TableUpdate(metadata, updates) }
     } yield TableState(currentVersion, tableUpdates)
@@ -110,28 +109,19 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
     val currentVersionUpdate = updateCurrentVersion(table, id)
     val operations = updatesForOperations(id, update.operations)
 
+    val checkTableExists = getTableMetadata(table).map(_._1).option >>= liftOrError(unknownTableError(table))
     val performUpdates = (tableUpdate :: currentVersionUpdate :: operations).traverse(_.run)
 
-    val io = for {
-      t <- getTableMetadata(table).map(_._1).option
-      _ <- liftOrError(t, unknownTableError(table))
-
-      _ <- performUpdates
-    } yield ()
+    val io = checkTableExists >> performUpdates
 
     io.transact(xa).void
   }
 
   override def setCurrentVersion(table: TableName, commitId: VersionTracker.CommitId): F[Unit] = {
-    val io = for {
-      t <- getTableMetadata(table).map(_._1).option
-      _ <- liftOrError(t, unknownTableError(table))
+    val checkTableExists = getTableMetadata(table).map(_._1).option >>= liftOrError(unknownTableError(table))
+    val checkCommitExists = getCommit(commitId).option >>= liftOrError(unknownCommitId(commitId))
 
-      c <- getCommit(commitId).option
-      _ <- liftOrError(c, unknownCommitId(commitId))
-
-      _ <- updateCurrentVersion(table, commitId).run
-    } yield ()
+    val io = checkTableExists >> checkCommitExists >> updateCurrentVersion(table, commitId).run.void
 
     io.transact(xa)
   }
@@ -140,7 +130,7 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
 
 object DbVersionTracker {
 
-  def liftOrError[A](a: Option[A], error: => Throwable): ConnectionIO[A] =
+  def liftOrError[A](error: => Throwable)(a: Option[A]): ConnectionIO[A] =
     a.map(_.pure[ConnectionIO]).getOrElse(error.raiseError[ConnectionIO, A])
 
   def initTables[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): F[Unit] = {
