@@ -16,12 +16,16 @@ final case class Version(timestamp: Instant, uuid: UUID) {
 
   import Version._
 
-  def label: String = {
-    val versionString = uuid
-    val localDateTime = LocalDateTime.ofInstant(timestamp, ZoneId.of("UTC"))
-    val timestampStr = timestampFormatter.format(localDateTime)
-    s"$timestampStr-$versionString"
-  }
+  def label: String =
+    // Note: this special case can be removed when https://github.com/stettix/chronicles/issues/22 is fixed
+    if (this == Unversioned)
+      ""
+    else {
+      val versionString = uuid
+      val localDateTime = LocalDateTime.ofInstant(timestamp, ZoneId.of("UTC"))
+      val timestampStr = timestampFormatter.format(localDateTime)
+      s"$timestampStr-$versionString"
+    }
 
   override def toString = label
 
@@ -42,20 +46,22 @@ object Version {
   /**
     * Try to parse a Version object from a string.
     */
-  def parse(label: String): Either[Throwable, Version] = {
+  def parse(label: String): Either[Throwable, Version] =
+    if (label == "")
+      Right(Version.Unversioned)
+    else {
+      def parseVersionFields(label: String): Either[Throwable, (String, String)] = label match {
+        case Version.TimestampAndUuidRegex(timestampStr, uuidStr) => Right((timestampStr, uuidStr))
+        case _                                                    => Left(new IllegalArgumentException(s"invalid version label format $label"))
+      }
 
-    def parseVersionFields(label: String): Either[Throwable, (String, String)] = label match {
-      case Version.TimestampAndUuidRegex(timestampStr, uuidStr) => Right((timestampStr, uuidStr))
-      case _                                                    => Left(new IllegalArgumentException(s"invalid version label format $label"))
+      for {
+        versionFields <- parseVersionFields(label)
+        (timestampStr, uuidStr) = versionFields
+        uuid <- Either.fromTry(Try(UUID.fromString(uuidStr)))
+        zonedDateTime = LocalDateTime.parse(timestampStr, Version.timestampFormatter).atZone(ZoneId.of("UTC"))
+        version = Version(Instant.from(zonedDateTime), uuid)
+      } yield version
     }
-
-    for {
-      versionFields <- parseVersionFields(label)
-      (timestampStr, uuidStr) = versionFields
-      uuid <- Either.fromTry(Try(UUID.fromString(uuidStr)))
-      zonedDateTime = LocalDateTime.parse(timestampStr, Version.timestampFormatter).atZone(ZoneId.of("UTC"))
-      version = Version(Instant.from(zonedDateTime), uuid)
-    } yield version
-  }
 
 }
