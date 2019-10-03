@@ -23,20 +23,20 @@ class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie
 
   DbVersionTracker.initTables(transactor).unsafeRunSync()
 
-  "allTablesQuery" should "be valid" in { check(DbVersionTracker.allTablesQuery) }
-  "tableCountQuery" should "be valid" in { check(DbVersionTracker.tableCountQuery(table)) }
-  "tableMetadataQuery" should "be valid" in { check(DbVersionTracker.tableMetadataQuery(table)) }
-  "updatesQuery" should "be valid" in { check(DbVersionTracker.updatesQuery(table)) }
-  "addTableQuery" should "be valid" in {
-    check(DbVersionTracker
-      .addTableUpdate(table, CommitId("id"), Instant.now(), UserId("id"), UpdateMessage("message"), isSnapshot = false))
+  "getAllTables" should "be valid" in { check(DbVersionTracker.getAllTables) }
+  "getTableMetadata" should "be valid" in { check(DbVersionTracker.getTableMetadata(table)) }
+  "getUpdates" should "be valid" in { check(DbVersionTracker.getUpdates(table)) }
+  "addTable" should "be valid" in {
+    check(
+      DbVersionTracker
+        .addTable(table, CommitId("id"), Instant.now(), UserId("id"), UpdateMessage("message"), isSnapshot = false))
   }
-  "currentVersionQuery" should "be valid" in { check(DbVersionTracker.currentVersionQuery(table)) }
-  "setCurrentVersionUpdate" should "be valid" in {
-    check(DbVersionTracker.initialiseCurrentVersionUpdate(table, CommitId("id")))
+  "getCurrentVersion" should "be valid" in { check(DbVersionTracker.getCurrentVersion(table)) }
+  "initialiseCurrentVersion" should "be valid" in {
+    check(DbVersionTracker.initialiseCurrentVersion(table, CommitId("id")))
   }
-  "updateCurrentVersionUpdate" should "be valid" in {
-    check(DbVersionTracker.updateCurrentVersionUpdate(table, CommitId("id")))
+  "updateCurrentVersion" should "be valid" in {
+    check(DbVersionTracker.updateCurrentVersion(table, CommitId("id")))
   }
   "getCommit" should "be valid" in { check(DbVersionTracker.getCommit(CommitId("id"))) }
 
