@@ -92,7 +92,7 @@ How serious this limitation is depends on your exact use case.
 
 ## License
 
-This project is released under the [Apache 2 License](https://)
+This project is released under the [Apache 2 License](https://github.com/stettix/chronicles/LICENSE)
 
 ## Acknowledgements
 
