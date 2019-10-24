@@ -1,4 +1,4 @@
-import microsites.ExtraMdFileConfig
+import microsites._
 import Shared._
 import Dependencies._
 import com.lucidchart.sbt.scalafmt.ScalafmtCorePlugin.autoImport._
@@ -33,13 +33,8 @@ lazy val assemblySettings = Seq(
   assemblyJarName in assembly := s"${name.value}.jar"
 )
 
-lazy val tutSettings = Seq(
-  scalacOptions in Tut ~= {
-    _.filterNot("-Ywarn-unused-import" == _)
-      .filterNot("-Xlint" == _)
-      .filterNot("-Xfatal-warnings" == _)
-  },
-  scalacOptions in Tut += "-Ydelambdafy:inline"
+lazy val noPublishSettings = Seq(
+  skip in publish := true
 )
 
 lazy val chronicles = (project in file("."))
@@ -103,18 +98,31 @@ lazy val microsite = project
   .in(file("site"))
   .enablePlugins(MicrositesPlugin)
   .settings(commonSettings)
+  .settings(noPublishSettings)
   .settings(
     micrositeName := "Chronicles",
     micrositeDescription := "Immutable storage and version control for Big Data",
+    micrositeAuthor := "Jan Stette",
     micrositeGithubOwner := "stettix",
     micrositeGithubRepo := "chronicles",
     micrositeBaseUrl := "",
+    micrositePalette := Map(
+      "brand-primary" -> "#E35D31",
+      "brand-secondary" -> "#B24916",
+      "brand-tertiary" -> "#B24916",
+      "gray-dark" -> "#453E46",
+      "gray" -> "#837F84",
+      "gray-light" -> "#E3E2E3",
+      "gray-lighter" -> "#F4F3F4",
+      "white-color" -> "#FFFFFF"
+    ),
     micrositeExtraMdFiles := Map(
       file("README.md") -> ExtraMdFileConfig(
         "index.md",
         "home",
         Map("title" -> "Home", "section" -> "home", "position" -> "0")
       )
-    )
+    ),
+    micrositeCompilingDocsTool := WithMdoc,
+    mdocIn := sourceDirectory.value / "main" / "tut"
   )
-  .settings(tutSettings)
