@@ -2,7 +2,7 @@
 
 This project contains code that allows big data tables to be modified in a safe way, tracking previous versions of data and performing updates in a way that is fast and reliable.
 
-For a detailed discussion about the origin of this project, see [the documentation](https://github.com/stettix/chronicles/docs/concepts.md).
+For a detailed discussion about the origin of this project, see [the documentation](/docs/concepts.md).
 
 ## Why use Chronicles
 
@@ -92,7 +92,7 @@ How serious this limitation is depends on your exact use case.
 
 ## License
 
-This project is released under the [Apache 2 License](https://github.com/stettix/chronicles/LICENSE)
+This project is released under the [Apache 2 License](/LICENSE)
 
 ## Acknowledgements
 
