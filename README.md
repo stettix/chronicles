@@ -29,7 +29,7 @@ In other words, you can query an older version of a table while production users
 This project is a toolkit that requires some self-assembly, i.e. it's not a shrink-wrapped solution that you can point and click to install in your data lake.
 
 The project is at an early stage: while the basic functionality is complete and tested, it has _not_ been battle hardened in production use yet.
-If you're considering using this in production feel free to [get in touch](TODO) for help.
+If you're considering using this in production feel free to [get in touch](https://twitter.com/JanStette) for help.
 
 If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#alternatives) instead.
 
