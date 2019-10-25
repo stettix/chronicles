@@ -22,6 +22,7 @@ object Dependencies {
   lazy val doobieDependencies: Seq[ModuleID] =
     Seq(
       "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.tpolecat" %% "doobie-postgres" % doobieVersion % "it",
       "org.tpolecat" %% "doobie-scalatest" % doobieVersion % "test,it"
     )
 
