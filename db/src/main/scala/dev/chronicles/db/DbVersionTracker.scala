@@ -9,7 +9,9 @@ import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
 import doobie._
+import doobie.enum.TransactionIsolation.TransactionSerializable
 import doobie.implicits._
+import doobie.util.transactor.{Strategy, Transactor}
 import fs2.Stream
 
 /**
@@ -18,7 +20,7 @@ import fs2.Stream
   * Note: the transactor used with this class has to be configured to use a 'serializable' transaction isolation
   * strategy. This is because the implementation relies on performing multiple queries per transactions.
   */
-class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
+class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
     extends VersionTracker[F] {
 
   import DbVersionTracker._
@@ -130,6 +132,14 @@ class DbVersionTracker[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F:
 
 object DbVersionTracker {
 
+  /** Constructor */
+  def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): DbVersionTracker[F] = {
+    // Ensure transactor runs with the highest isolation level, as we rely on that to handle concurrent updates correctly.
+    val configuredXa = (Transactor.strategy >=> Strategy.before)
+      .set(xa, doobie.hi.connection.setTransactionIsolation(TransactionSerializable))
+    new DbVersionTracker(configuredXa)
+  }
+
   def liftOrError[A](error: => Throwable)(a: Option[A]): ConnectionIO[A] =
     a.map(_.pure[ConnectionIO]).getOrElse(error.raiseError[ConnectionIO, A])
 
@@ -144,7 +154,7 @@ object DbVersionTracker {
     createTables.transact(xa).void
   }
 
-  val createTablesTable =
+  private[db] val createTablesTable =
     sql"""create table if not exists chronicle_tables_v1 (
          |  metastore_id                varchar(32),
          |  table_name                  varchar(512),
@@ -157,7 +167,7 @@ object DbVersionTracker {
          |)
          |""".stripMargin.update
 
-  val createUpdatesTable =
+  private[db] val createUpdatesTable =
     sql"""create table if not exists chronicle_table_updates_v1 (
          |  sequence_id                 bigint generated always as identity,
          |  commit_id                   varchar(36) not null,
@@ -171,7 +181,7 @@ object DbVersionTracker {
          |)
          |""".stripMargin.update
 
-  val createOperationsTable =
+  private[db] val createOperationsTable =
     sql"""create table if not exists chronicle_table_operations_v1 (
          |  commit_id                   varchar(36),
          |  index_in_commit             int not null,
@@ -185,7 +195,7 @@ object DbVersionTracker {
          |)
          |""".stripMargin.update
 
-  val createVersionRefsTable =
+  private[db] val createVersionRefsTable =
     sql"""create table if not exists chronicles_version_refs_v1 (
          |  metastore_id                varchar(32),
          |  table_name                  varchar(512),
@@ -196,11 +206,11 @@ object DbVersionTracker {
          |)
          |""".stripMargin.update
 
-  val getAllTables =
+  private[db] val getAllTables =
     sql"""select table_name from chronicle_tables_v1"""
       .query[String]
 
-  def addTable(
+  private[db] def addTable(
       table: TableName,
       commitId: CommitId,
       createTime: Instant,
@@ -211,7 +221,7 @@ object DbVersionTracker {
          |  values ('default', ${table.fullyQualifiedName}, ${commitId.id}, $createTime, ${userId.value}, ${message.content}, $isSnapshot)
          |  """.stripMargin.update
 
-  def addTableUpdate(
+  private[db] def addTableUpdate(
       commitId: CommitId,
       table: TableName,
       updateTime: Instant,
@@ -222,7 +232,7 @@ object DbVersionTracker {
          |  values (${commitId.id}, 'default', ${table.fullyQualifiedName}, $updateTime, ${userId.value}, ${message.content})
          |""".stripMargin.update
 
-  def addOperation(
+  private[db] def addOperation(
       commitId: CommitId,
       indexInCommit: Int,
       operationType: String,
@@ -236,14 +246,14 @@ object DbVersionTracker {
            .map(_.fullyQualifiedName)}, $isSnapshot)
          |""".stripMargin.update
 
-  def getTableMetadata(table: TableName) =
+  private[db] def getTableMetadata(table: TableName) =
     sql"""
          |select init_commit_id, creation_time, created_by, message, is_snapshot_table
          |  from chronicle_tables_v1
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.query[(String, Instant, String, String, Boolean)]
 
-  def getUpdates(table: TableName) =
+  private[db] def getUpdates(table: TableName) =
     sql"""select
          |    u.commit_id, u.update_time, u.user_id, u.message,
          |    o.operation_type, o.version, o.partition, o.table_name, o.is_snapshot_table
@@ -257,24 +267,24 @@ object DbVersionTracker {
          |""".stripMargin
       .query[(String, Instant, String, String, String, Option[String], Option[String], Option[String], Option[Boolean])]
 
-  def getCurrentVersion(table: TableName) =
+  private[db] def getCurrentVersion(table: TableName) =
     sql"""select current_version
          |  from chronicles_version_refs_v1
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.query[String].map(CommitId)
 
-  def initialiseCurrentVersion(table: TableName, commitId: CommitId) =
+  private[db] def initialiseCurrentVersion(table: TableName, commitId: CommitId) =
     sql"""insert into chronicles_version_refs_v1 (metastore_id, table_name, current_version)
          |  values('default', ${table.fullyQualifiedName}, ${commitId.id})
          |""".stripMargin.update
 
-  def updateCurrentVersion(table: TableName, commitId: CommitId) =
+  private[db] def updateCurrentVersion(table: TableName, commitId: CommitId) =
     sql"""update chronicles_version_refs_v1
          |  set current_version = ${commitId.id}
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.update
 
-  def getCommit(commitId: CommitId) =
+  private[db] def getCommit(commitId: CommitId) =
     sql"""select table_name, update_time, user_id, message
          |  from chronicle_table_updates_v1
          |  where commit_id = ${commitId.id}

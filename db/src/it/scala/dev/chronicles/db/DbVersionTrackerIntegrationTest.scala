@@ -6,7 +6,6 @@ import cats.effect._
 import dev.chronicles.core.TableName
 import dev.chronicles.core.VersionTracker._
 import doobie.util.transactor.Transactor
-import doobie.util.transactor.Transactor.Aux
 import org.scalatest.{FlatSpec, Matchers}
 
 class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie.scalatest.IOChecker {
@@ -14,10 +13,10 @@ class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie
   implicit val contextShift: ContextShift[IO] =
     IO.contextShift(scala.concurrent.ExecutionContext.global)
 
-  override val transactor: Aux[IO, Unit] =
+  override val transactor: Transactor[IO] =
     Transactor.fromDriverManager[IO]("org.h2.Driver", "jdbc:h2:mem:itestdb;DB_CLOSE_DELAY=-1", "", "")
 
-  val versionTracker = new DbVersionTracker(transactor)
+  val versionTracker = DbVersionTracker(transactor)
 
   val table = TableName("db", "test")
 
