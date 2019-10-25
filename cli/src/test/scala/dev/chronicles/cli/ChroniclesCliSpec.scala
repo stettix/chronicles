@@ -6,6 +6,7 @@ import dev.chronicles.cli.StubConsole.{StdErr, StdOut}
 import dev.chronicles.core.VersionTracker.UserId
 import dev.chronicles.core.{InMemoryVersionTracker, TableName, VersionedMetastore}
 import org.scalatest.{FlatSpec, Matchers}
+import pureconfig.ConfigSource
 
 class ChroniclesCliSpec extends FlatSpec with Matchers {
 
@@ -27,6 +28,62 @@ class ChroniclesCliSpec extends FlatSpec with Matchers {
   it should "build an action for a 'log <table name>' command" in {
     val result = ChroniclesCli.argParser.parse(List("log", "schema.table_name"))
     result shouldBe Right(Action.ShowTableHistory(TableName("schema", "table_name")))
+  }
+
+  "Reading a valid postgresql config" should "produce the specified values" in {
+    val configSource = ConfigSource.string("""
+        type: "db-config"
+        db-type: postgresql
+        hostname: "foo.bar.com"
+        port: 5432
+        db-name: "foo"
+        username: "bar"
+        password: "baz"
+      """.stripMargin)
+
+    val scenario = for {
+      console <- StubConsole[IO]
+      config <- ChroniclesCli.loadConfig(configSource, console)
+    } yield config
+
+    val result = scenario.unsafeRunSync()
+
+    result shouldBe DbConfig(DatabaseType.Postgresql, "foo.bar.com", 5432, "foo", "bar", "baz")
+  }
+
+  "Reading a valid in-memory config" should "produce a simple MemConfig object" in {
+    val configSource = ConfigSource.string("""
+        type: "mem-config"
+      """.stripMargin)
+
+    val scenario = for {
+      console <- StubConsole[IO]
+      config <- ChroniclesCli.loadConfig(configSource, console)
+    } yield config
+
+    val result = scenario.unsafeRunSync()
+
+    result shouldBe MemConfig
+  }
+
+  "Reading a config with an unknown database type" should "produce an error" in {
+    val configSource = ConfigSource.string("""
+        type: "db-config"
+        db-type: bogobase
+        hostname: "foo.bar.com"
+        port: 5432
+        db-name: "foo"
+        username: "bar"
+        password: "baz"
+      """.stripMargin)
+
+    val scenario = for {
+      console <- StubConsole[IO]
+      config <- ChroniclesCli.loadConfig(configSource, console)
+    } yield config
+
+    val error = the[Error] thrownBy scenario.unsafeRunSync()
+    error.getMessage.toLowerCase should include("invalid configuration")
   }
 
   "Running commands to add and list tables" should "show all tables that exist" in {

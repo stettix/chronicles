@@ -56,11 +56,12 @@ lazy val `chronicles-db` = project
 lazy val `chronicles-cli` = project
   .in(file("cli"))
   .settings(commonSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.monovore" %% "decline" % "0.5.0"
-    ))
-  .dependsOn(`chronicles-core`)
+  .settings(libraryDependencies ++= Seq(
+    "com.monovore" %% "decline" % "0.5.0",
+    "com.github.pureconfig" %% "pureconfig" % pureConfigVersion,
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % pureConfigVersion
+  ))
+  .dependsOn(`chronicles-core`, `chronicles-db`)
 
 lazy val `chronicles-spark` = project
   .in(file("spark"))
