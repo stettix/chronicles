@@ -37,7 +37,7 @@ class DbVersionTrackerSpec extends FlatSpec with Matchers with VersionTrackerSpe
   "The database-backed version tracker implementation" should behave like versionTrackerBehaviour(createTracker)
 
   private def createTracker: IO[DbVersionTracker[IO]] = {
-    val tracker = new DbVersionTracker[IO](transactor)
+    val tracker = DbVersionTracker[IO](transactor)
     for {
       _ <- clearDatabaseState
       _ <- tracker.init()
