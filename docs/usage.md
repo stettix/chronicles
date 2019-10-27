@@ -2,8 +2,11 @@
 
 ### Setting up a version history database
 
+**TBD**
+
 ### Installing
-TBD
+
+**TBD**
 
 ## Updating Spark jobs to write versioned data
 
