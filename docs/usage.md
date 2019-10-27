@@ -9,4 +9,3 @@ TBD
 ## Querying versioned data
 
 TBD
-

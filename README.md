@@ -49,7 +49,8 @@ Non-breaking schema changes can be done as normal, but there is no special provi
 To perform schema-breaking changes, you still need to populate a new table from scratch.
 * If you want to limit the amount of storage space used for older version, you will have to have automated processes in place that remove older versions of data based on some criteria such as age or the number of kept versions.
 This is typically needed for data partitioned by time anyway, but the logic of such purging of old data will have to change to take into account stored versions.
-
+* While __Chronicles__ supports concurrent writes to the same table, it does not try to resolve conflicts caused by multiple concurrent jobs writing to the same table partitions.
+That's considered an orchestration issue and out of scope.
 
 ## Alternatives
 
