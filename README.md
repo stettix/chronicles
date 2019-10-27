@@ -28,19 +28,18 @@ In other words, you can query an older version of a table while production users
 
 This project is a toolkit that requires some self-assembly, i.e. it's not a shrink-wrapped solution that you can point and click to install in your data lake.
 
-The project is at an early stage: while the basic functionality is complete and tested, it has _not_ been battle hardened in production use yet.
-If you're considering using this in production feel free to [get in touch](https://twitter.com/JanStette) for help.
+The project is at an early stage, it's a work in progress and has **not** been seem production use yet.
+If you're interested to try it out, feel free to [get in touch](https://twitter.com/JanStette) for help.
 
 If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#alternatives) instead.
 
 ## Status
 
-The basic functionality of this project is in place, but this has not been used in production systems yet.
-We expect to do the initial release of the software artifacts for this in the near future.
+This is a work in progress and is not ready for production use yet. 
 
 ## Limitations
 
-It's worth being aware of the following limitations of Chronicles:
+It's worth being aware of some inherent limitations of Chronicles:
 
 * Chronicles does not support record based updates, only updates by partition.
 This may or may not impact the performance for your use case.
@@ -49,7 +48,7 @@ Non-breaking schema changes can be done as normal, but there is no special provi
 To perform schema-breaking changes, you still need to populate a new table from scratch.
 * If you want to limit the amount of storage space used for older version, you will have to have automated processes in place that remove older versions of data based on some criteria such as age or the number of kept versions.
 This is typically needed for data partitioned by time anyway, but the logic of such purging of old data will have to change to take into account stored versions.
-* While __Chronicles__ supports concurrent writes to the same table, it does not try to resolve conflicts caused by multiple concurrent jobs writing to the same table partitions.
+* While Chronicles supports concurrent writes to the same table, it does not try to resolve conflicts caused by multiple concurrent jobs writing to the same table partitions.
 That's considered an orchestration issue and out of scope.
 
 ## Alternatives
@@ -64,26 +63,21 @@ The following tables lists some alternatives to Chronicles, highlighting the dif
 |Atomic updates                          | ✅ | ✅ | ✅|
 |Row level updates                       | ❌ | ✅ | ✅|
 |Schema evolution                        | ❌ | ✅ | ✅|
-|Requires migrating data on adoption     | ✅ | ❌ | ❌|
-|Requires migrating metastore on adoption| ✅ | ❌ | ❌|
+|Not required to migrate data on adoption     | ✅ | ❌ | ❌|
+|Not required to migrate metastore on adoption| ✅ | ❌ | ❌|
 |**Data write support** ||||
 |Supports Spark     | ✅ | ✅ | ✅|
-|Supports Flink     | ✅ | ❌ | ❌|
-|Data read support||||
+|**Data read support**||||
 |Supports Spark     | ✅ | ✅ | ✅|
 |Supports Flink     | ✅ | ❌ | ❌|
 |Supports Presto    | ✅ | ✅ | 🔸 (limited support, not in open source edition)|
-|Supports AWS Athena| ✅ | ✅ | 🔸 (limited support, not in open source edition)|
-|Supports HiveSQL   | ✅ | ❌ | ❌|
+|Supports AWS Athena| ✅ | ❌ | 🔸 (limited support, not in open source edition)|
+|Supports Hive      | ✅ | ❌ | ❌|
 |**File format support**||||
 |Parquet            | ✅ | ❌ (uses custom format) | ✅ (uses Parquet but a custom storage layout)|
 |ORC                | ✅ | ❌ | ❌|
 |Avro               | ✅ | ❌ | ❌|
 |CSV                | ✅ | ❌ | ❌|
-|**Metastore support**||||
-|AWS Metastore      | ✅ | ✅ | ❌|
-|Hive Metastore     | ✅ | ✅ | ❌|
-|Custom metastore   | ❌ | ❌ | ✅|
 
 As this table highlights, an important difference between Chronicles and the alternatives is that Chronicles stores data in a way that is fully compatible with any current or future tool or system that can query via a Metastore.
 The other options define custom file formats or use a custom directory layout that means any tool used to write to or query the data needs to have explicit support for these custom formats.
