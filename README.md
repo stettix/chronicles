@@ -2,7 +2,8 @@
 
 This project contains code that allows big data tables to be modified in a safe way, tracking previous versions of data and performing updates in a way that is fast and reliable.
 
-For a detailed discussion about the origin of this project, see [the documentation](/docs/concepts.md).
+For a detailed discussion about the main ideas behind this project, see [the documentation](/docs/concepts.md).
+See [the 'Usage'](/docs/usage.md) section for more details about how to use its various components.
 
 ## Why use Chronicles
 
@@ -28,14 +29,16 @@ In other words, you can query an older version of a table while production users
 
 This project is a toolkit that requires some self-assembly, i.e. it's not a shrink-wrapped solution that you can point and click to install in your data lake.
 
-The project is at an early stage, it's a work in progress and has **not** been seem production use yet.
-If you're interested to try it out, feel free to [get in touch](https://twitter.com/JanStette) for help.
+The project is at an early stage, it's a work in progress and has **not** seen production use yet.
+If you're interested and would like to know more, feel free to [get in touch](https://twitter.com/JanStette).
 
 If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#alternatives) instead.
 
 ## Status
 
-This is a work in progress and is not ready for production use yet. 
+This is a work in progress and is not ready for production use yet.
+
+See the [project board](https://github.com/stettix/chronicles/projects/1) to see what's being worked on and what is remaining.
 
 ## Limitations
 

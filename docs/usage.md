@@ -1,10 +1,58 @@
 ## Installation
 
+### Setting up a version history database
+
+### Installing
 TBD
 
 ## Updating Spark jobs to write versioned data
 
-TBD
+### Adding the Spark API library
+
+**TBD**
+
+### Updating Spark code to write versioned data
+
+The `chronicles-spark` module contains the API used to write versioned data using Spark.
+The Chronicles API for Spark is provided in an extension class `SparkSupport`.
+This provides additional methods on Spark `Dataset`s.
+To use this in your own Spark code, you first need to provide a 'VersionContext' object.
+This contains the Chronicles infrastructure used by the Spark API.
+
+You would normally do this only once in the startup of your Spark job, using the code:
+
+**TBD!**
+
+Then, in code that wants to use the API on `Dataset`s, you use the following code to import the extended functionality:
+
+```scala
+  import dev.chronicles.spark.SparkSupport
+  val ss = SparkSupport(versionContext)
+  import ss.syntax._
+```
+
+Now you can use the `versionedInsertInto` method provided in the Chronicles API:
+
+```scala
+def versionedInsertInto(table: TableDefinition, userId: UserId, message: String): (TableVersion, TableChanges)
+```
+
+This method emulates `DataFrameWriter.insertInto(table)` in that it takes any partitions that exist in the input `Dataset` and overwrite them in the table.
+But this write is executed using Chronicles, which means it actually writes a new version of partitions and updates metadata about this, instead of physically overwriting the old data.
+
+### Querying version history in code
+
+**TBD**
+
+### Performing rollbacks in code
+
+**TBD**
+
+### Further information
+
+See also [the examples module](/examples) for example code that performs common actions using the Chronicles API.
+One example is the [TableLoader](/examples/src/main/scala/dev/chronicles/examples/TableLoader.scala) class, which uses the `Dataset` extension methods discussed above.
+Other examples are provided in the form of executable specs, for example [DatePartitionedTableLoaderSpec][/examples/src/test/scala/dev/chronicles/examples/DatePartitionedTableLoaderSpec.scala]
 
 ## Using the CLI
 
