@@ -136,7 +136,8 @@ object DbVersionTracker {
   def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): DbVersionTracker[F] = {
     // Ensure transactor runs with the highest isolation level, as we rely on that to handle concurrent updates correctly.
     val configuredXa = (Transactor.strategy >=> Strategy.before)
-      .set(xa, doobie.hi.connection.setTransactionIsolation(TransactionSerializable))
+      .modify(xa, _ *> HC.setTransactionIsolation(TransactionSerializable))
+
     new DbVersionTracker(configuredXa)
   }
 
