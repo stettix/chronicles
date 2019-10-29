@@ -36,7 +36,7 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
       .to[List]
       .map(_.traverse(TableName.fromFullyQualifiedName))
       .transact(xa)
-      .flatMap(F.fromEither)
+      .rethrow
 
   override def initTable(
       table: TableName,
