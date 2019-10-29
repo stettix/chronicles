@@ -17,8 +17,19 @@ object Dependencies {
       "org.typelevel" %% "cats-effect" % "1.3.1"
     )
 
+  val doobieVersion = "0.7.0"
+
+  lazy val doobieDependencies: Seq[ModuleID] =
+    Seq(
+      "org.tpolecat" %% "doobie-core" % doobieVersion,
+      "org.tpolecat" %% "doobie-postgres" % doobieVersion,
+      "org.tpolecat" %% "doobie-scalatest" % doobieVersion % "test,it"
+    )
+
   lazy val scalatest = "org.scalatest" %% "scalatest" % "3.0.5"
 
   val circeVersion = "0.11.1"
+
+  val pureConfigVersion = "0.12.1"
 
 }

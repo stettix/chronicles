@@ -1,9 +1,12 @@
 package dev.chronicles.core
 
+import java.time.Instant
+
 import cats.effect.Sync
 import cats.effect.concurrent.Ref
 import cats.implicits._
 import dev.chronicles.core.InMemoryVersionTracker._
+import dev.chronicles.core.VersionTracker.TableOperation.InitTable
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.util.RichRef._
 
@@ -54,13 +57,23 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
       tableState <- F.fromOption(allTableUpdates.get(table), unknownTableError(table))
     } yield tableState
 
-  override def handleInit(table: TableName)(newTableState: => TableState): F[Unit] =
+  override def initTable(
+      table: TableName,
+      isSnapshot: Boolean,
+      userId: UserId,
+      message: UpdateMessage,
+      timestamp: Instant): F[Unit] = {
+
+    val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
+    def newTableState = TableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
+
     allUpdates.update { prev =>
       if (prev.contains(table)) prev
       else {
         prev + (table -> newTableState)
       }
     }
+  }
 
 }
 

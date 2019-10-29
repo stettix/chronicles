@@ -12,6 +12,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.12",
   scalacOptions ++= scala211CompilerFlags,
   scalafmtOnCompile := true,
+  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
   libraryDependencies ++= Seq(
     scalatest % Test,
     "org.scalacheck" %% "scalacheck" % "1.14.0" % Test
@@ -42,14 +43,25 @@ lazy val `chronicles-core` = project
   .settings(commonSettings)
   .settings(libraryDependencies ++= catsDependencies)
 
+lazy val `chronicles-db` = project
+  .in(file("db"))
+  .configs(IntegrationTest)
+  .settings(commonSettings)
+  .settings(
+    libraryDependencies ++= catsDependencies ++ doobieDependencies ++ Seq(
+      "com.h2database" % "h2" % "1.4.199" % IntegrationTest
+    ))
+  .dependsOn(`chronicles-core` % "compile->compile;test->test;it->test")
+
 lazy val `chronicles-cli` = project
   .in(file("cli"))
   .settings(commonSettings)
-  .settings(
-    libraryDependencies ++= Seq(
-      "com.monovore" %% "decline" % "0.5.0"
-    ))
-  .dependsOn(`chronicles-core`)
+  .settings(libraryDependencies ++= Seq(
+    "com.monovore" %% "decline" % "0.5.0",
+    "com.github.pureconfig" %% "pureconfig" % pureConfigVersion,
+    "com.github.pureconfig" %% "pureconfig-enumeratum" % pureConfigVersion
+  ))
+  .dependsOn(`chronicles-core`, `chronicles-db`)
 
 lazy val `chronicles-spark` = project
   .in(file("spark"))

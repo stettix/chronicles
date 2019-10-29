@@ -55,7 +55,7 @@ class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], cloc
       message: VersionTracker.UpdateMessage): F[Unit] =
     for {
       now <- clock.realTime(Millis).map(Instant.ofEpochMilli)
-      _ <- delegate.init(name, isSnapshot, userId, message, now)
+      _ <- delegate.initTable(name, isSnapshot, userId, message, now)
       _ <- console.println(s"Initialised table ${name.fullyQualifiedName}")
     } yield ()
 
