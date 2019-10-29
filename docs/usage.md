@@ -17,8 +17,7 @@
 ### Updating Spark code to write versioned data
 
 The `chronicles-spark` module contains the API used to write versioned data using Spark.
-The Chronicles API for Spark is provided in an extension class `SparkSupport`.
-This provides additional methods on Spark `Dataset`s.
+The Chronicles API for Spark is provided in an extension class `SparkSupport` which adds additional methods on Spark `Dataset`s.
 To use this in your own Spark code, you first need to provide a 'VersionContext' object.
 This contains the Chronicles infrastructure used by the Spark API.
 
