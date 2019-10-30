@@ -3,7 +3,7 @@
 This project contains code that allows big data tables to be modified in a safe way, tracking previous versions of data and performing updates in a way that is fast and reliable.
 
 For a detailed discussion about the main ideas behind this project, see [the documentation](/docs/concepts.md).
-See [the 'Usage'](/docs/usage.md) section for more details about how to use its various components.
+See the [Usage](/docs/usage.md) section for more details about how to incorporate it in your data jobs.
 
 ## Status
 
@@ -13,22 +13,22 @@ See the [project board](https://github.com/stettix/chronicles/projects/1) to see
 
 ## Why use Chronicles
 
-Big data pipelines often store data directly for example as Parquet or ORC files, instead of writing to a databases.
-Such files are often written to an HDFS file systems, or cloud blob storage such as AWS S3, Google Cloud Storage, or Azure Blob Storage.
+Big data pipelines often store data directly for example as Parquet or ORC files, instead of writing to a database.
+Such files are often written to an HDFS file system, or to cloud blob storage such as AWS S3, Google Cloud Storage, or Azure Blob Storage.
 
-The drawback of writing such data directly as files is that you don't have database features such as transactions.
+The drawback of dealing directly with raw files is that you don't have database features such as transactions.
 Updates to data require deleting old data as well as writing new data, and these updates are not atomic.
 This means you can get wrong results while reading or querying the data while such operations take place.
 
 This also means there is no easy way to revert to a previously known good state if a write goes wrong.
 
-Such problems are not so much a problem when datasets are append-only, i.e. only new data is written out.
+These limitations are not so much a of problem when datasets are append-only, i.e. only new data is written out.
 However, we find that in practice, updating existing data is often required, for example to reprocess data after fixing bugs or changing business logic, or when optimising the storage of files within a dataset.
 
 Chronicles allows all updates to be performed safely, by using an immutable storage schema for data, and tracking the history of datasets hence knowing which files to include in each version of the data.
 
 This also means you get an audit history of all updates to a dataset.
-And, you can even have concurrent views on different versions of a given table.
+You can even have concurrent views on different versions of a given table.
 In other words, you can query an older version of a table while production users are accessing the latest version of the table.
 
 ## Why not use Chronicles
@@ -38,7 +38,7 @@ This project is a toolkit that requires some self-assembly, i.e. it's not a shri
 The project is at an early stage, it's a work in progress and has **not** seen production use yet.
 If you're interested and would like to know more, feel free to [get in touch](https://twitter.com/JanStette).
 
-If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#alternatives) instead.
+If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#Feature comparison) instead.
 
 ## Limitations
 
@@ -53,7 +53,7 @@ This is typically needed for incremental time-based data anyway, but the logic o
 * While Chronicles supports concurrent writes to the same table, it does not try to resolve conflicts caused by multiple concurrent jobs writing to the same table partitions.
 That's considered an orchestration issue hence  out of scope for Chronicles.
 
-## Alternatives
+## Feature comparison
 
 The following tables lists some alternatives to Chronicles, highlighting the differing functionality they provide.
 
@@ -65,13 +65,13 @@ The following tables lists some alternatives to Chronicles, highlighting the dif
 |Atomic updates                          | ✅ | ✅ | ✅|
 |Row level updates                       | ❌ | ✅ | ✅|
 |Schema evolution                        | ❌ | ✅ | ✅|
-|Use existing data on adoption           | ✅ | ❌ | ❌|
-|Use metastore on adoption               | ✅ | ❌ | ❌|
+|Keep existing data on adoption          | ✅ | ❌ | ❌|
+|Keep existing metastore on adoption     | ✅ | ✅ | ❌|
 |**Data write support** ||||
 |Supports Spark     | ✅ | ✅ | ✅|
 |**Data read support**||||
 |Supports Spark     | ✅ | ✅ | ✅|
-|Supports Flink     | ✅ | ❌ | ❌|
+|Supports Flink     | ✅ | ✅ | ❌|
 |Supports Presto    | ✅ | ✅ | 🔸 (limited support, not in open source edition)|
 |Supports AWS Athena| ✅ | ❌ | 🔸 (limited support, not in open source edition)|
 |Supports Hive      | ✅ | ❌ | ❌|
