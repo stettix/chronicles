@@ -71,7 +71,7 @@ The following tables lists some alternatives to Chronicles, highlighting the dif
 |Supports Spark     | ✅ | ✅ | ✅|
 |**Data read support**||||
 |Supports Spark     | ✅ | ✅ | ✅|
-|Supports Flink     | ✅ | ❌ | ❌|
+|Supports Flink     | ✅ | ✅ | ❌|
 |Supports Presto    | ✅ | ✅ | 🔸 (limited support, not in open source edition)|
 |Supports AWS Athena| ✅ | ❌ | 🔸 (limited support, not in open source edition)|
 |Supports Hive      | ✅ | ❌ | ❌|
