@@ -38,7 +38,7 @@ This project is a toolkit that requires some self-assembly, i.e. it's not a shri
 The project is at an early stage, it's a work in progress and has **not** seen production use yet.
 If you're interested and would like to know more, feel free to [get in touch](https://twitter.com/JanStette).
 
-If you want the security of a solution backed by a large organisation, you may want to consider one of the [alternatives](#Feature comparison) instead.
+If you want the security of a solution backed by a large organisation, you may want to consider one of the alternatives listed below instead.
 
 ## Limitations
 
