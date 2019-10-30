@@ -6,8 +6,7 @@ import java.nio.file.Paths
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
 import dev.chronicles.spark.SparkHiveSuite
-import dev.chronicles.spark.SparkHiveSuite
-import dev.chronicles.spark.filesystem.VersionedFileSystem
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

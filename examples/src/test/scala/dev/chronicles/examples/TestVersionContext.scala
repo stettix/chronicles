@@ -2,7 +2,6 @@ package dev.chronicles.examples
 
 import cats.effect.IO
 import dev.chronicles.core.{InMemoryVersionTracker, Version, VersionedMetastore}
-import dev.chronicles.spark.SparkHiveMetastore
 import dev.chronicles.spark.{SparkHiveMetastore, VersionContext}
 import org.apache.spark.sql.SparkSession
 

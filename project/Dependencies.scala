@@ -4,6 +4,13 @@ object Dependencies {
 
   val sparkVersion = "2.4.3"
 
+  val hadoopVersion = "2.6.5"
+
+  lazy val hadoopDependencies: Seq[ModuleID] =
+    Seq(
+      "org.apache.hadoop" % "hadoop-common" %	hadoopVersion
+    )
+
   lazy val sparkDependencies: Seq[ModuleID] =
     Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,

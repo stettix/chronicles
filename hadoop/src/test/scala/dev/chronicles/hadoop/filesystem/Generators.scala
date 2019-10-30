@@ -1,15 +1,15 @@
-package dev.chronicles.spark
+package dev.chronicles.hadoop.filesystem
 
 import cats.data.NonEmptyList
 import cats.effect.IO
 import dev.chronicles.core.Partition.{ColumnValue, PartitionColumn}
 import dev.chronicles.core.{Partition, Version}
-import dev.chronicles.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem.VersionedFileSystemConfig
 import org.scalacheck.Gen
 
 trait Generators {
 
-  val nonEmptyStr = Gen.nonEmptyListOf(Gen.alphaLowerChar).map(_.mkString)
+  val nonEmptyStr: Gen[String] = Gen.nonEmptyListOf(Gen.alphaLowerChar).map(_.mkString)
 
   val columnValueGen: Gen[ColumnValue] =
     nonEmptyStr.flatMap(s => nonEmptyStr.map(t => ColumnValue(PartitionColumn(s), t)))

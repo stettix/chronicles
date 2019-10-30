@@ -3,11 +3,15 @@ package dev.chronicles.spark.filesystem
 import cats.effect.IO
 import dev.chronicles.core.Partition.{ColumnValue, PartitionColumn}
 import dev.chronicles.core.{Partition, Version}
-import VersionedFileSystem.VersionedFileSystemConfig
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem.VersionedFileSystemConfig
+import dev.chronicles.hadoop.filesystem._
 import dev.chronicles.spark.SparkHiveSuite
 import org.apache.spark.sql.SaveMode
 import org.scalatest.{FlatSpec, Matchers}
 
+/**
+  * Checks ensuring that the Hadoop filesystem works correctly when used via Spark.
+  */
 class VersionedFileSystemSparkSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
