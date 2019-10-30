@@ -66,7 +66,7 @@ The following tables lists some alternatives to Chronicles, highlighting the dif
 |Row level updates                       | ❌ | ✅ | ✅|
 |Schema evolution                        | ❌ | ✅ | ✅|
 |Keep existing data on adoption          | ✅ | ❌ | ❌|
-|Keep existing metastore on adoption     | ✅ | ❌ | ❌|
+|Keep existing metastore on adoption     | ✅ | ✅ | ❌|
 |**Data write support** ||||
 |Supports Spark     | ✅ | ✅ | ✅|
 |**Data read support**||||
