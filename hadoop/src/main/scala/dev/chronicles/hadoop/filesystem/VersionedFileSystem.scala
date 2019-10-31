@@ -1,4 +1,4 @@
-package dev.chronicles.spark.filesystem
+package dev.chronicles.hadoop.filesystem
 
 import java.net.URI
 import java.time.Instant
@@ -89,7 +89,7 @@ object VersionedFileSystem extends LazyLogging {
   def sparkConfig(baseFileSystemSchema: String, configDirectory: URI): Map[String, String] =
     Map(
       // @formatter: off
-      "spark.hadoop.fs.versioned.impl" -> "dev.chronicles.spark.filesystem.VersionedFileSystem",
+      "spark.hadoop.fs.versioned.impl" -> "dev.chronicles.hadoop.filesystem.VersionedFileSystem",
       "spark.hadoop." + ConfigKeys.baseFS -> baseFileSystemSchema,
       ConfigKeys.committerAlgorithm -> "2",
       "spark.hadoop." + ConfigKeys.configDirectory -> configDirectory.toString,

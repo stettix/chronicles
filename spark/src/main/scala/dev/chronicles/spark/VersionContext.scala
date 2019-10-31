@@ -9,8 +9,8 @@ import dev.chronicles.core.Metastore.TableChanges
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import dev.chronicles.spark.filesystem.VersionedFileSystem.VersionedFileSystemConfig
-import dev.chronicles.spark.filesystem.VersionedFileSystem
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem.VersionedFileSystemConfig
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.apache.spark.sql.{Dataset, Row, SaveMode}
 
 /**

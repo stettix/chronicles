@@ -11,7 +11,7 @@ import dev.chronicles.core._
 import dev.chronicles.core.Metastore.TableChanges
 import dev.chronicles.core.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
 import dev.chronicles.spark.VersionContextSpec.{Event, User}
-import dev.chronicles.spark.filesystem.VersionedFileSystem
+import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.apache.spark.sql.Dataset
 import org.scalatest.{FlatSpec, Matchers}
 

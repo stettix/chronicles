@@ -22,7 +22,7 @@ This means we can transparently use for example Spark Dataset methods for writin
 To use this file system in a job, you need to configure this file system. You do this via the following Hadoop configuration properties:
 
 ```
-fs.versioned.impl=dev.chronicles.spark.filesystem.VersionedFileSystem.spark.VersionedFileSystem
+fs.versioned.impl=dev.chronicles.hadoop.filesystem.VersionedFileSystem.spark.VersionedFileSystem
 fs.versioned.impl.disable.cache=true
 fs.versioned.baseFS=<the scheme of the underlying filesystem, e.g. "s3" or "hdfs"
 fs.versioned.configDirectory=<the path where the partition version configuration will be written>

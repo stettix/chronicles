@@ -1,4 +1,4 @@
-package dev.chronicles.spark.filesystem
+package dev.chronicles.hadoop.filesystem
 
 import cats.effect.IO
 import cats.implicits._
