@@ -41,7 +41,10 @@ lazy val chronicles = (project in file("."))
 lazy val `chronicles-core` = project
   .in(file("core"))
   .settings(commonSettings)
-  .settings(libraryDependencies ++= catsDependencies)
+  .settings(
+    libraryDependencies ++= catsDependencies ++ Seq(
+      "co.fs2" %% "fs2-core" % fs2Version
+    ))
 
 lazy val `chronicles-db` = project
   .in(file("db"))

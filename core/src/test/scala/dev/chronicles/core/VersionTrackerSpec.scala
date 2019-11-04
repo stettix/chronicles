@@ -37,13 +37,13 @@ trait VersionTrackerSpec {
       val scenario = for {
         versionTracker <- initialVersionTracker
 
-        tablesBeforeInit <- versionTracker.tables()
+        tablesBeforeInit <- versionTracker.tables().compile.toList
 
         _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init table 1"), Instant.now())
-        tables1 <- versionTracker.tables()
+        tables1 <- versionTracker.tables().compile.toList
 
         _ <- versionTracker.initTable(table2, isSnapshot = false, userId, UpdateMessage("init table 2"), Instant.now())
-        tables2 <- versionTracker.tables()
+        tables2 <- versionTracker.tables().compile.toList
 
       } yield (tablesBeforeInit, tables1, tables2)
 
@@ -243,7 +243,7 @@ trait VersionTrackerSpec {
         versionTracker <- initialVersionTracker
         _ <- versionTracker.initTable(table, isSnapshot = false, userId, UpdateMessage("init"), timestamp(0))
 
-        historyAfterInit <- versionTracker.updates(table)
+        historyAfterInit <- versionTracker.updates(table).compile.toList
 
         _ <- versionTracker.commit(table, tableUpdate1)
         _ <- versionTracker.commit(table, tableUpdate2)
@@ -252,7 +252,7 @@ trait VersionTrackerSpec {
         versionAfterWrites <- versionTracker.currentVersion(table)
 
         // Get the update history after updates
-        fullHistory <- versionTracker.updates(table)
+        fullHistory <- versionTracker.updates(table).compile.toList
 
         // Setting the current version to the latest should have no effect
         _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
@@ -331,7 +331,7 @@ trait VersionTrackerSpec {
         versionTracker <- initialVersionTracker
         _ <- versionTracker.initTable(table, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
 
-        historyAfterInit <- versionTracker.updates(table)
+        historyAfterInit <- versionTracker.updates(table).compile.toList
 
         _ <- versionTracker.commit(table, tableUpdate1)
         _ <- versionTracker.commit(table, tableUpdate2)
@@ -340,7 +340,7 @@ trait VersionTrackerSpec {
         versionAfterWrites <- versionTracker.currentVersion(table)
 
         // Get the update history after updates
-        fullHistory <- versionTracker.updates(table)
+        fullHistory <- versionTracker.updates(table).compile.toList
 
         // Setting the current version to the latest should have no effect
         _ <- versionTracker.setCurrentVersion(table, fullHistory.head.id)
@@ -418,7 +418,7 @@ trait VersionTrackerSpec {
         // Commit all the updates
         _ <- tableUpdates.map(update => versionTracker.commit(table, update)).sequence
 
-        updateHistory <- versionTracker.updates(table)
+        updateHistory <- versionTracker.updates(table).compile.toList
 
       } yield (tableUpdates, updateHistory)
 
@@ -457,7 +457,7 @@ trait VersionTrackerSpec {
     it should "return an error if trying to get the version history for an unknown table" in {
       val scenario = for {
         versionTracker <- initialVersionTracker
-        _ <- versionTracker.updates(table)
+        _ <- versionTracker.updates(table).compile.toList
       } yield ()
 
       val ex = the[Exception] thrownBy scenario.unsafeRunSync()

@@ -20,7 +20,7 @@ import fs2.Stream
   * Note: the transactor used with this class has to be configured to use a 'serializable' transaction isolation
   * strategy. This is because the implementation relies on performing multiple queries per transactions.
   */
-class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
+class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShift[F], F: Sync[F])
     extends VersionTracker[F] {
 
   import DbVersionTracker._
@@ -31,10 +31,9 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
   def init(): F[Unit] =
     initTables(xa)
 
-  override def tables(): F[List[TableName]] =
-    DbVersionTracker.getAllTables
-      .to[List]
-      .map(_.traverse(TableName.fromFullyQualifiedName))
+  override def tables(): Stream[F, TableName] =
+    DbVersionTracker.getAllTables.stream
+      .map(TableName.fromFullyQualifiedName)
       .transact(xa)
       .rethrow
 
@@ -64,8 +63,9 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     addTableIfNotExists.transact(xa).void
   }
 
-  override protected def tableState(table: TableName): F[VersionTracker.TableState] = {
+  override protected def tableState(table: TableName): F[VersionTracker.TableState[F]] = {
 
+    // Helper function for parsing raw column values
     def toTableUpdate(
         commitId: String,
         creationTime: Instant,
@@ -76,7 +76,7 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
         partitionStr: Option[String],
         tableNameStr: Option[String],
         isSnapshot: Option[Boolean]
-    ): Either[Throwable, TableUpdate] = {
+    ): Either[Throwable, TableUpdate] =
       for {
         version <- versionStr.traverse(Version.parse)
         partition <- partitionStr.traverse(Partition.parse)
@@ -84,24 +84,22 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
         operation <- typedOperation(operationType, version, partition, tableName, isSnapshot)
         metadata = TableUpdateMetadata(CommitId(commitId), UserId(createdBy), UpdateMessage(message), creationTime)
       } yield TableUpdate(metadata, operations = List(operation))
-    }
 
     // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
     // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
-    val updatesStream =
+    val updatesStream: Stream[doobie.ConnectionIO, TableUpdate] =
       getUpdates(table).stream
         .map((toTableUpdate _).tupled)
-        .flatMap(Stream.fromEither[ConnectionIO](_))
+        .rethrow
         .groupAdjacentBy(_.metadata)(Eq.fromUniversalEquals[TableUpdateMetadata])
-        .map { case (metadata, updates) => metadata -> updates.toList.flatMap(_.operations) }
+        .map { case (metadata, updates) => TableUpdate(metadata, updates.toList.flatMap(_.operations)) }
 
-    val tableState = for {
-      currentVersion <- getCurrentVersion(table).option >>= liftOrError(unknownTableError(table))
-      updates <- updatesStream.compile.toList
-      tableUpdates = updates.map { case (metadata, updates) => TableUpdate(metadata, updates) }
-    } yield TableState(currentVersion, tableUpdates)
+    val commitId: Stream[doobie.ConnectionIO, CommitId] =
+      Stream.eval(getCurrentVersion(table).option >>= liftOrError(unknownTableError(table)))
 
-    tableState.transact(xa)
+    val getCommitId: F[CommitId] = commitId.transact(xa).compile.lastOrError
+
+    getCommitId.map(commitId => TableState(commitId, updatesStream.transact(xa)))
   }
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
@@ -128,12 +126,15 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     io.transact(xa)
   }
 
+  override def isSnapshotTable(table: TableName): F[Boolean] =
+    getTableMetadata(table).map(_._5).unique.transact(xa)
+
 }
 
 object DbVersionTracker {
 
   /** Constructor */
-  def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): DbVersionTracker[F] = {
+  def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Sync[F]): DbVersionTracker[F] = {
     // Ensure transactor runs with the highest isolation level, as we rely on that to handle concurrent updates correctly.
     val configuredXa = (Transactor.strategy >=> Strategy.before)
       .modify(xa, _ *> HC.setTransactionIsolation(TransactionSerializable))
