@@ -36,15 +36,14 @@ trait VersionTracker[F[_]] {
     // Derive current version of a table by folding over the history of changes
     // until either the latest or version marked as 'current' is reached.
     val aggregateTableVersion = for {
-      ts <- Stream.eval(tableState(table))
-      updatesForCurrentVersion = ts.updates.takeThrough(_.metadata.id != ts.currentVersion)
+      state <- Stream.eval(tableState(table, timeOrder = true))
+      updatesForCurrentVersion = state.updates.takeThrough(_.metadata.id != state.currentVersion)
 
-      //operations = updatesForCurrentVersion.flatMap(update => Stream.emits(update.operations))
-      operations <- updatesForCurrentVersion.map(update => Stream.emits(update.operations))
+      operations = updatesForCurrentVersion.flatMap(update => Stream.emits(update.operations))
 
-      snapshotTable <- Stream.eval(isSnapshotTable(table))
+      isSnapshot <- Stream.eval(isSnapshotTable(table))
 
-      tableVersion <- if (snapshotTable)
+      tableVersion <- if (isSnapshot)
         latestSnapshotTableVersion[F](operations).covaryOutput[TableVersion]
       else
         applyPartitionUpdates(PartitionedTableVersion(Map.empty))(operations).covaryOutput[TableVersion]
@@ -56,7 +55,7 @@ trait VersionTracker[F[_]] {
   /** Return the history of table updates, most recent first. */
   def updates(table: TableName)(implicit F: Sync[F]): Stream[F, TableUpdateMetadata] =
     Stream
-      .eval(tableState(table))
+      .eval(tableState(table, timeOrder = false))
       .flatMap(_.updates.map(_.metadata))
 
   /**
@@ -81,7 +80,7 @@ trait VersionTracker[F[_]] {
   /**
     * Produce description of the current state of table.
     */
-  protected def tableState(table: TableName): F[TableState[F]]
+  protected def tableState(table: TableName, timeOrder: Boolean): F[TableState[F]]
 
 }
 
@@ -162,7 +161,7 @@ object VersionTracker {
 
     latestVersions
       .lastOr(initial.partitionVersions)
-      .map(partitionVersions => PartitionedTableVersion(partitionVersions))
+      .map(PartitionedTableVersion)
   }
 
   /**

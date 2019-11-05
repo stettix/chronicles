@@ -53,11 +53,12 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
     allUpdates.modifyEither(applyUpdate)
   }
 
-  override def tableState(table: TableName): F[TableState[F]] =
+  override def tableState(table: TableName, timeOrder: Boolean): F[TableState[F]] =
     for {
       allTableUpdates <- allUpdates.get
       tableState <- F.fromOption(allTableUpdates.get(table), unknownTableError(table))
-    } yield TableState(tableState.currentVersion, Stream.emits(tableState.updates.reverse))
+      updates = if (timeOrder) tableState.updates else tableState.updates.reverse
+    } yield TableState(tableState.currentVersion, Stream.emits(updates))
 
   override def initTable(
       table: TableName,

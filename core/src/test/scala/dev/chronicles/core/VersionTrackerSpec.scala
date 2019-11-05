@@ -103,6 +103,8 @@ trait VersionTrackerSpec {
                       initialPartitionVersions.map(AddPartitionVersion.tupled).toList)
         )
 
+        updates1 <- versionTracker.updates(table).compile.toList
+
         tableVersion1 <- versionTracker.currentVersion(table)
 
         // Do an update with one updated partition and one new one
@@ -113,12 +115,14 @@ trait VersionTrackerSpec {
                                                partitionUpdate1.map(AddPartitionVersion.tupled).toList))
         tableVersion2 <- versionTracker.currentVersion(table)
 
-      } yield (initialTableVersion, tableVersion1, tableVersion2)
+      } yield (initialTableVersion, updates1, tableVersion1, tableVersion2)
 
-      val (initialTableVersion, tableVersion1, tableVersion2) =
+      val (initialTableVersion, updates1, tableVersion1, tableVersion2) =
         scenario.unsafeRunSync()
 
       initialTableVersion shouldBe PartitionedTableVersion(Map.empty)
+
+      updates1.map(_.message.content) should contain theSameElementsAs List("Add initial partitions", "init")
       tableVersion1 shouldBe PartitionedTableVersion(initialPartitionVersions)
 
       tableVersion2 shouldEqual PartitionedTableVersion(

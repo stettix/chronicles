@@ -63,7 +63,7 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     addTableIfNotExists.transact(xa).void
   }
 
-  override protected def tableState(table: TableName): F[VersionTracker.TableState[F]] = {
+  override protected def tableState(table: TableName, timeOrder: Boolean): F[VersionTracker.TableState[F]] = {
 
     // Helper function for parsing raw column values
     def toTableUpdate(
@@ -87,17 +87,17 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
 
     // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
     // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
-    val updatesStream: Stream[doobie.ConnectionIO, TableUpdate] =
-      getUpdates(table).stream
+    val updatesStream =
+      getUpdates(table, timeOrder).stream
         .map((toTableUpdate _).tupled)
         .rethrow
         .groupAdjacentBy(_.metadata)(Eq.fromUniversalEquals[TableUpdateMetadata])
         .map { case (metadata, updates) => TableUpdate(metadata, updates.toList.flatMap(_.operations)) }
 
-    val commitId: Stream[doobie.ConnectionIO, CommitId] =
-      Stream.eval(getCurrentVersion(table).option >>= liftOrError(unknownTableError(table)))
+    val commitId =
+      getCurrentVersion(table).option >>= liftOrError(unknownTableError(table))
 
-    val getCommitId: F[CommitId] = commitId.transact(xa).compile.lastOrError
+    val getCommitId: F[CommitId] = Stream.eval(commitId).transact(xa).compile.lastOrError
 
     getCommitId.map(commitId => TableState(commitId, updatesStream.transact(xa)))
   }
@@ -255,8 +255,10 @@ object DbVersionTracker {
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.query[(String, Instant, String, String, Boolean)]
 
-  private[db] def getUpdates(table: TableName) =
-    sql"""select
+  private[db] def getUpdates(table: TableName, timeOrder: Boolean) = {
+    val ordering = if (timeOrder) fr"u.sequence_id" else fr"u.sequence_id desc"
+
+    val query = fr"""select
          |    u.commit_id, u.update_time, u.user_id, u.message,
          |    o.operation_type, o.version, o.partition, o.table_name, o.is_snapshot_table
          |  from chronicle_tables_v1 t
@@ -265,9 +267,12 @@ object DbVersionTracker {
          |    inner join chronicle_table_operations_v1 o
          |  on u.commit_id = o.commit_id
          |  where t.table_name = ${table.fullyQualifiedName}
-         |  order by u.sequence_id, o.index_in_commit
-         |""".stripMargin
+         |  order by """.stripMargin ++
+      ordering ++ fr", o.index_in_commit asc"
+
+    query
       .query[(String, Instant, String, String, String, Option[String], Option[String], Option[String], Option[Boolean])]
+  }
 
   private[db] def getCurrentVersion(table: TableName) =
     sql"""select current_version
