@@ -103,7 +103,6 @@ class ChroniclesCliSpec extends FlatSpec with Matchers {
     val consoleOutput = scenario.unsafeRunSync()
 
     consoleOutput should contain theSameElementsInOrderAs List(
-      StdOut(""),
       StdOut("Initialised table db.test_table"),
       StdOut("db.test_table")
     )

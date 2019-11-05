@@ -40,7 +40,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     val loader = new TableLoader[User](versionContext, table, ddl, isSnapshot = true)
 
-    metastore.tables().unsafeRunSync() shouldBe Nil
+    metastore.tables().compile.toList.unsafeRunSync() shouldBe Nil
 
     loader.initTable(userId, UpdateMessage("init"))
 
@@ -53,7 +53,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     loader.insert(identitiesDay1.toDS(), userId, "Committing first version from test")
 
     // We should see a new table
-    metastore.tables().unsafeRunSync() shouldBe List(table.name)
+    metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
 
     // Query the table to make sure we have the right data
     val day1TableData = loader.data().collect()
@@ -72,7 +72,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     loader.insert(identitiesDay2.toDS(), userId, "Committing second version from test")
 
     // We should still see a single table
-    metastore.tables().unsafeRunSync() shouldBe List(table.name)
+    metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
 
     // Query it to make sure we have the right data
     val day2TableData = loader.data().collect()
@@ -84,7 +84,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     updatedVersionDirs should contain allElementsOf initialTableVersionDirs
 
     // Get version history
-    val versionTracker = metastore.updates(table.name).unsafeRunSync()
+    val versionTracker = metastore.updates(table.name).compile.toList.unsafeRunSync()
     versionTracker.size shouldBe 3 // One initial version plus two written versions
 
     // Roll back to previous version
