@@ -7,7 +7,6 @@ import cats.implicits._
 import dev.chronicles.core.VersionTracker.TableOperation.{AddPartitionVersion, RemovePartition}
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import fs2.Stream
 
 import scala.concurrent.duration.{MILLISECONDS => Millis}
 
@@ -28,11 +27,10 @@ class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], cloc
       removePartition(tableName, partitionName, userId, message)
   }
 
-  def listTables(console: Console[F]): F[Unit] =
-    (for {
-      tableOutput <- delegate.tables().map(_.fullyQualifiedName)
-      _ <- Stream.eval(console.println(tableOutput))
-    } yield ()).compile.drain
+  def listTables(console: Console[F]): F[Unit] = {
+    val output = delegate.tables().map(_.fullyQualifiedName)
+    console.printlns(output).compile.drain
+  }
 
   def listPartitions(table: TableName): F[Unit] = {
     def partitionsList(tableVersion: TableVersion): Either[Throwable, List[String]] = tableVersion match {
@@ -59,12 +57,13 @@ class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], cloc
       _ <- console.println(s"Initialised table ${name.fullyQualifiedName}")
     } yield ()
 
-  def showTableHistory(tableName: TableName): F[Unit] =
-    (for {
-      update <- delegate.updates(tableName)
-      historyEntryOutput = s"${update.id}\t${update.timestamp}\t${update.userId}\t${update.message}"
-      _ <- Stream.eval(console.println(historyEntryOutput))
-    } yield ()).compile.drain
+  def showTableHistory(tableName: TableName): F[Unit] = {
+    val output = delegate
+      .updates(tableName)
+      .map(update => s"${update.id}\t${update.timestamp}\t${update.userId}\t${update.message}")
+
+    console.printlns(output).compile.drain
+  }
 
   def addPartition(
       tableName: TableName,
