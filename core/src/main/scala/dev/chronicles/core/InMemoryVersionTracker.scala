@@ -18,10 +18,7 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
     extends VersionTracker[F] {
 
   override def tables(): Stream[F, TableName] =
-    for {
-      allTableUpdates <- Stream.eval(allUpdates.get)
-      updates <- Stream.emits(allTableUpdates.keys.toList)
-    } yield updates
+    Stream.eval(allUpdates.get).map(_.keys.toList) >>= Stream.emits
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
     val applyUpdate: TableUpdates => Either[Exception, TableUpdates] = { currentTableUpdates =>
