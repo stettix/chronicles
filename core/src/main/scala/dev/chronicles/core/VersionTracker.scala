@@ -36,7 +36,7 @@ trait VersionTracker[F[_]] {
     // Derive current version of a table by folding over the history of changes
     // until either the latest or version marked as 'current' is reached.
     val aggregateTableVersion = for {
-      state <- Stream.eval(tableState(table, timeOrder = true))
+      state <- Stream.eval(tableState(table, timeOrder = TableState.TimeAscending))
       updatesForCurrentVersion = state.updates.takeThrough(_.metadata.id != state.currentVersion)
 
       operations = updatesForCurrentVersion.flatMap(update => Stream.emits(update.operations))
@@ -55,7 +55,7 @@ trait VersionTracker[F[_]] {
   /** Return the history of table updates, most recent first. */
   def updates(table: TableName)(implicit F: Sync[F]): Stream[F, TableUpdateMetadata] =
     Stream
-      .eval(tableState(table, timeOrder = false))
+      .eval(tableState(table, timeOrder = TableState.TimeDescending))
       .flatMap(_.updates.map(_.metadata))
 
   /**
@@ -80,7 +80,7 @@ trait VersionTracker[F[_]] {
   /**
     * Produce description of the current state of table.
     */
-  protected def tableState(table: TableName, timeOrder: Boolean): F[TableState[F]]
+  protected def tableState[O <: TableState.Ordering](table: TableName, timeOrder: O): F[TableState[F, O]]
 
 }
 
@@ -138,10 +138,15 @@ object VersionTracker {
     *
     * @param currentVersion The ID of the committed update that's considered the current version.
     *                       This will refer to the latest update unless a rollback operation has been performed.
-    * @param updates The list of updates that has been performed on the table.
-    *                These must be returned in the order they were executed.
+    * @param updates The list of updates that has been performed on the table, in the specified order.
     */
-  final case class TableState[F[_]](currentVersion: CommitId, updates: Stream[F, TableUpdate])
+  final case class TableState[F[_], O <: TableState.Ordering](currentVersion: CommitId, updates: Stream[F, TableUpdate])
+
+  object TableState {
+    sealed trait Ordering extends Product with Serializable
+    case object TimeAscending extends Ordering
+    case object TimeDescending extends Ordering
+  }
 
   /**
     * Produce current partitioned table version based on history of partition updates.

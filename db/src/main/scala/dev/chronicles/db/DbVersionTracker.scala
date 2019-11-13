@@ -63,11 +63,11 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     addTableIfNotExists.transact(xa).void
   }
 
-  override protected def tableState(table: TableName, timeOrder: Boolean): F[VersionTracker.TableState[F]] = {
+  override protected def tableState[O <: TableState.Ordering](table: TableName, timeOrder: O): F[TableState[F, O]] = {
     // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
     // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
     val updatesStream =
-      getUpdates(table, timeOrder).stream
+      getUpdates(table, timeOrder == TableState.TimeAscending).stream
         .map((toTableUpdate _).tupled)
         .rethrow
         .groupAdjacentBy(_.metadata)(Eq.fromUniversalEquals[TableUpdateMetadata])
@@ -79,7 +79,7 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     // Note: this runs the initial query in a separate transaction, but that's OK as the updates
     // table we read in the second query is append-only so it doesn't matter if it has changed since the first query.
     val getCommitId = Stream.eval(commitId).transact(xa).compile.lastOrError
-    getCommitId.map(commitId => TableState(commitId, updatesStream.transact(xa)))
+    getCommitId.map(commitId => TableState[F, O](commitId, updatesStream.transact(xa)))
   }
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
