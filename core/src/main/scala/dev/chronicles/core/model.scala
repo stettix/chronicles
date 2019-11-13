@@ -110,7 +110,7 @@ final case class TableDefinition(name: TableName, location: URI, partitionSchema
 /**
   * The complete set of version information for all partitions in a table.
   */
-sealed trait TableVersion
+sealed trait TableVersion extends Product with Serializable
 final case class PartitionedTableVersion(partitionVersions: Map[Partition, Version]) extends TableVersion
 final case class SnapshotTableVersion(version: Version) extends TableVersion
 

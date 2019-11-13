@@ -44,9 +44,9 @@ trait VersionTracker[F[_]] {
       isSnapshot <- Stream.eval(isSnapshotTable(table))
 
       tableVersion <- if (isSnapshot)
-        latestSnapshotTableVersion[F](operations).covaryOutput[TableVersion]
+        latestSnapshotTableVersion[F](operations)
       else
-        applyPartitionUpdates(PartitionedTableVersion(Map.empty))(operations).covaryOutput[TableVersion]
+        applyPartitionUpdates(PartitionedTableVersion(Map.empty))(operations)
     } yield tableVersion
 
     aggregateTableVersion.head.compile.lastOrError
