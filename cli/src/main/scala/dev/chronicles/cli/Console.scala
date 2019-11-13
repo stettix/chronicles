@@ -1,6 +1,5 @@
 package dev.chronicles.cli
 
-import cats.Functor
 import cats.effect._
 import fs2.Stream
 
@@ -12,14 +11,10 @@ import scala.io.StdIn
 trait Console[F[_]] {
   def println(msg: String): F[Unit]
   def errorln(msg: String): F[Unit]
-
-  def printlns(msgs: Stream[F, String])(implicit F: Functor[F]): Stream[F, String] =
-    msgs.evalTap(println)
-
-  def errorlns(msgs: Stream[F, String])(implicit F: Functor[F]): Stream[F, String] =
-    msgs.evalTap(println)
-
   def readLine(prompt: String): F[Option[String]]
+
+  final def printlns(msgs: Stream[F, String]): Stream[F, Unit] =
+    msgs.evalMap(println)
 }
 
 object Console {
