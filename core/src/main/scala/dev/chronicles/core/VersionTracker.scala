@@ -4,9 +4,9 @@ import java.time.Instant
 import java.util.UUID
 
 import cats.effect.Sync
-import cats.implicits._
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
+import fs2.Stream
 
 /**
   * This defines the interface for querying and updating table version information tracked by the system.
@@ -16,7 +16,7 @@ trait VersionTracker[F[_]] {
   /**
     * List all known tables.
     */
-  def tables(): F[List[TableName]]
+  def tables(): Stream[F, TableName]
 
   /**
     * Start tracking version information for given table.
@@ -32,23 +32,31 @@ trait VersionTracker[F[_]] {
   /**
     * Get details about partition versions in a table.
     */
-  def currentVersion(table: TableName)(implicit F: Sync[F]): F[TableVersion] =
+  def currentVersion(table: TableName)(implicit F: Sync[F]): F[TableVersion] = {
     // Derive current version of a table by folding over the history of changes
     // until either the latest or version marked as 'current' is reached.
-    for {
-      ts <- tableState(table)
-      matchingUpdates = ts.updates.span(_.metadata.id != ts.currentVersion)
-      updatesForCurrentVersion = matchingUpdates._1 ++ matchingUpdates._2.take(1)
-      operations = updatesForCurrentVersion.flatMap(_.operations)
-    } yield
-      if (isSnapshotTable(operations))
-        latestSnapshotTableVersion(operations)
+    val aggregateTableVersion = for {
+      state <- Stream.eval(tableState(table, timeOrder = TableState.TimeAscending))
+      updatesForCurrentVersion = state.updates.takeThrough(_.metadata.id != state.currentVersion)
+
+      operations = updatesForCurrentVersion.flatMap(update => Stream.emits(update.operations))
+
+      isSnapshot <- Stream.eval(isSnapshotTable(table))
+
+      tableVersion <- if (isSnapshot)
+        latestSnapshotTableVersion[F](operations)
       else
         applyPartitionUpdates(PartitionedTableVersion(Map.empty))(operations)
+    } yield tableVersion
+
+    aggregateTableVersion.head.compile.lastOrError
+  }
 
   /** Return the history of table updates, most recent first. */
-  def updates(table: TableName)(implicit F: Sync[F]): F[List[TableUpdateMetadata]] =
-    tableState(table).map(_.updates.map(_.metadata).reverse)
+  def updates(table: TableName)(implicit F: Sync[F]): Stream[F, TableUpdateMetadata] =
+    Stream
+      .eval(tableState(table, timeOrder = TableState.TimeDescending))
+      .flatMap(_.updates.map(_.metadata))
 
   /**
     * Update partition versions to the given versions.
@@ -60,6 +68,11 @@ trait VersionTracker[F[_]] {
     */
   def setCurrentVersion(table: TableName, id: VersionTracker.CommitId): F[Unit]
 
+  /**
+    * Get the flag that indicates whether a table is a snapshot table or not.
+    */
+  def isSnapshotTable(table: TableName): F[Boolean]
+
   //
   // Internal operations to be provided by implementations
   //
@@ -67,7 +80,7 @@ trait VersionTracker[F[_]] {
   /**
     * Produce description of the current state of table.
     */
-  protected def tableState(table: TableName): F[TableState]
+  protected def tableState[O <: TableState.Ordering](table: TableName, timeOrder: O): F[TableState[F, O]]
 
 }
 
@@ -125,16 +138,21 @@ object VersionTracker {
     *
     * @param currentVersion The ID of the committed update that's considered the current version.
     *                       This will refer to the latest update unless a rollback operation has been performed.
-    * @param updates The list of updates that has been performed on the table.
-    *                These must be returned in the order they were executed.
+    * @param updates The list of updates that has been performed on the table, in the specified order.
     */
-  final case class TableState(currentVersion: CommitId, updates: List[TableUpdate])
+  final case class TableState[F[_], O <: TableState.Ordering](currentVersion: CommitId, updates: Stream[F, TableUpdate])
+
+  object TableState {
+    sealed trait Ordering extends Product with Serializable
+    case object TimeAscending extends Ordering
+    case object TimeDescending extends Ordering
+  }
 
   /**
     * Produce current partitioned table version based on history of partition updates.
     */
-  def applyPartitionUpdates(initial: PartitionedTableVersion)(
-      operations: List[TableOperation]): PartitionedTableVersion = {
+  private[core] def applyPartitionUpdates[F[_]](initial: PartitionedTableVersion)(
+      operations: Stream[F, TableOperation]): Stream[F, PartitionedTableVersion] = {
 
     def applyOp(agg: Map[Partition, Version], op: TableOperation): Map[Partition, Version] = op match {
       case AddPartitionVersion(partition: Partition, version: Version) =>
@@ -144,25 +162,23 @@ object VersionTracker {
       case _: InitTable | _: AddTableVersion => agg
     }
 
-    val latestVersions = operations.foldLeft(initial.partitionVersions)(applyOp)
+    val latestVersions = operations.fold(initial.partitionVersions)(applyOp)
 
-    PartitionedTableVersion(latestVersions)
+    latestVersions
+      .lastOr(initial.partitionVersions)
+      .map(PartitionedTableVersion)
   }
 
   /**
     * Produce current snapshot table version based on history of table version updates.
     */
-  def latestSnapshotTableVersion(operations: List[TableOperation]): SnapshotTableVersion = {
-    val versions = operations.collect {
-      case AddTableVersion(version) => version
-    }
-    SnapshotTableVersion(versions.lastOption.getOrElse(Version.Unversioned))
-  }
-
-  def isSnapshotTable(operations: List[TableOperation]): Boolean = operations match {
-    case InitTable(_, isSnapshot) :: _ => isSnapshot
-    case _                             => throw new IllegalArgumentException("First operation should be initialising the table")
-  }
+  private def latestSnapshotTableVersion[F[_]](operations: Stream[F, TableOperation]): Stream[F, SnapshotTableVersion] =
+    operations
+      .collect {
+        case AddTableVersion(version) => version
+      }
+      .lastOr(Version.Unversioned)
+      .map(SnapshotTableVersion)
 
   // Errors
 

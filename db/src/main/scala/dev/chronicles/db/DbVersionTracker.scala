@@ -20,7 +20,7 @@ import fs2.Stream
   * Note: the transactor used with this class has to be configured to use a 'serializable' transaction isolation
   * strategy. This is because the implementation relies on performing multiple queries per transactions.
   */
-class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable])
+class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShift[F], F: Sync[F])
     extends VersionTracker[F] {
 
   import DbVersionTracker._
@@ -31,10 +31,9 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
   def init(): F[Unit] =
     initTables(xa)
 
-  override def tables(): F[List[TableName]] =
-    DbVersionTracker.getAllTables
-      .to[List]
-      .map(_.traverse(TableName.fromFullyQualifiedName))
+  override def tables(): Stream[F, TableName] =
+    DbVersionTracker.getAllTables.stream
+      .map(TableName.fromFullyQualifiedName)
       .transact(xa)
       .rethrow
 
@@ -64,44 +63,23 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     addTableIfNotExists.transact(xa).void
   }
 
-  override protected def tableState(table: TableName): F[VersionTracker.TableState] = {
-
-    def toTableUpdate(
-        commitId: String,
-        creationTime: Instant,
-        createdBy: String,
-        message: String,
-        operationType: String,
-        versionStr: Option[String],
-        partitionStr: Option[String],
-        tableNameStr: Option[String],
-        isSnapshot: Option[Boolean]
-    ): Either[Throwable, TableUpdate] = {
-      for {
-        version <- versionStr.traverse(Version.parse)
-        partition <- partitionStr.traverse(Partition.parse)
-        tableName <- tableNameStr.traverse(TableName.fromFullyQualifiedName)
-        operation <- typedOperation(operationType, version, partition, tableName, isSnapshot)
-        metadata = TableUpdateMetadata(CommitId(commitId), UserId(createdBy), UpdateMessage(message), creationTime)
-      } yield TableUpdate(metadata, operations = List(operation))
-    }
-
+  override protected def tableState[O <: TableState.Ordering](table: TableName, timeOrder: O): F[TableState[F, O]] = {
     // The query produces the value for a TableUpdateMetadata and TableOperation for each row.
     // Chunk these up by grouping the resulting stream by adjacent TableUpdateMetadata object.
     val updatesStream =
-      getUpdates(table).stream
+      getUpdates(table, timeOrder == TableState.TimeAscending).stream
         .map((toTableUpdate _).tupled)
-        .flatMap(Stream.fromEither[ConnectionIO](_))
+        .rethrow
         .groupAdjacentBy(_.metadata)(Eq.fromUniversalEquals[TableUpdateMetadata])
-        .map { case (metadata, updates) => metadata -> updates.toList.flatMap(_.operations) }
+        .map { case (metadata, updates) => TableUpdate(metadata, updates.toList.flatMap(_.operations)) }
 
-    val tableState = for {
-      currentVersion <- getCurrentVersion(table).option >>= liftOrError(unknownTableError(table))
-      updates <- updatesStream.compile.toList
-      tableUpdates = updates.map { case (metadata, updates) => TableUpdate(metadata, updates) }
-    } yield TableState(currentVersion, tableUpdates)
+    val commitId =
+      getCurrentVersion(table).option >>= liftOrError(unknownTableError(table))
 
-    tableState.transact(xa)
+    // Note: this runs the initial query in a separate transaction, but that's OK as the updates
+    // table we read in the second query is append-only so it doesn't matter if it has changed since the first query.
+    val getCommitId = Stream.eval(commitId).transact(xa).compile.lastOrError
+    getCommitId.map(commitId => TableState[F, O](commitId, updatesStream.transact(xa)))
   }
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
@@ -128,12 +106,15 @@ class DbVersionTracker[F[_]] private (xa: Transactor[F])(implicit cs: ContextShi
     io.transact(xa)
   }
 
+  override def isSnapshotTable(table: TableName): F[Boolean] =
+    getTableMetadata(table).map(_._5).unique.transact(xa)
+
 }
 
 object DbVersionTracker {
 
   /** Constructor */
-  def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Bracket[F, Throwable]): DbVersionTracker[F] = {
+  def apply[F[_]](xa: Transactor[F])(implicit cs: ContextShift[F], F: Sync[F]): DbVersionTracker[F] = {
     // Ensure transactor runs with the highest isolation level, as we rely on that to handle concurrent updates correctly.
     val configuredXa = (Transactor.strategy >=> Strategy.before)
       .modify(xa, _ *> HC.setTransactionIsolation(TransactionSerializable))
@@ -254,8 +235,10 @@ object DbVersionTracker {
          |  where table_name = ${table.fullyQualifiedName}
          |""".stripMargin.query[(String, Instant, String, String, Boolean)]
 
-  private[db] def getUpdates(table: TableName) =
-    sql"""select
+  private[db] def getUpdates(table: TableName, timeOrder: Boolean) = {
+    val ordering = if (timeOrder) fr"u.sequence_id" else fr"u.sequence_id desc"
+
+    val query = fr"""select
          |    u.commit_id, u.update_time, u.user_id, u.message,
          |    o.operation_type, o.version, o.partition, o.table_name, o.is_snapshot_table
          |  from chronicle_tables_v1 t
@@ -264,9 +247,12 @@ object DbVersionTracker {
          |    inner join chronicle_table_operations_v1 o
          |  on u.commit_id = o.commit_id
          |  where t.table_name = ${table.fullyQualifiedName}
-         |  order by u.sequence_id, o.index_in_commit
-         |""".stripMargin
+         |  order by """.stripMargin ++
+      ordering ++ fr", o.index_in_commit asc"
+
+    query
       .query[(String, Instant, String, String, String, Option[String], Option[String], Option[String], Option[Boolean])]
+  }
 
   private[db] def getCurrentVersion(table: TableName) =
     sql"""select current_version
@@ -319,5 +305,25 @@ object DbVersionTracker {
       case InitTable(tableName, isSnapshot) =>
         addOperation(commitId, index, "init_table", None, None, Some(tableName), Some(isSnapshot))
     }
+
+  /** Parse and validate raw column values */
+  private[db] def toTableUpdate(
+      commitId: String,
+      creationTime: Instant,
+      createdBy: String,
+      message: String,
+      operationType: String,
+      versionStr: Option[String],
+      partitionStr: Option[String],
+      tableNameStr: Option[String],
+      isSnapshot: Option[Boolean]
+  ): Either[Throwable, TableUpdate] =
+    for {
+      version <- versionStr.traverse(Version.parse)
+      partition <- partitionStr.traverse(Partition.parse)
+      tableName <- tableNameStr.traverse(TableName.fromFullyQualifiedName)
+      operation <- typedOperation(operationType, version, partition, tableName, isSnapshot)
+      metadata = TableUpdateMetadata(CommitId(commitId), UserId(createdBy), UpdateMessage(message), creationTime)
+    } yield TableUpdate(metadata, operations = List(operation))
 
 }

@@ -102,7 +102,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       "impression_date=2019-03-14" -> "processed_date=2019-03-15")
 
     // Get version history
-    val versionHistory = metastore.updates(table.name).unsafeRunSync()
+    val versionHistory = metastore.updates(table.name).compile.toList.unsafeRunSync()
     versionHistory.size shouldBe 4 // One initial version plus three written versions
 
     // Roll back to previous version

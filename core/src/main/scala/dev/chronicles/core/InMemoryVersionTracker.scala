@@ -9,6 +9,7 @@ import dev.chronicles.core.InMemoryVersionTracker._
 import dev.chronicles.core.VersionTracker.TableOperation.InitTable
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.util.RichRef._
+import fs2.Stream
 
 /**
   * Reference implementation of the table version store. Does not persist state.
@@ -16,17 +17,15 @@ import dev.chronicles.core.util.RichRef._
 class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(implicit F: Sync[F])
     extends VersionTracker[F] {
 
-  override def tables(): F[List[TableName]] =
-    for {
-      allTableUpdates <- allUpdates.get
-    } yield allTableUpdates.keys.toList
+  override def tables(): Stream[F, TableName] =
+    Stream.eval(allUpdates.get).map(_.keys.toList) >>= Stream.emits
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
     val applyUpdate: TableUpdates => Either[Exception, TableUpdates] = { currentTableUpdates =>
       currentTableUpdates.get(table).fold[Either[Exception, TableUpdates]](Left(unknownTableError(table))) {
         currentTableState =>
           val newTableState =
-            TableState(currentVersion = update.metadata.id, updates = currentTableState.updates :+ update)
+            InMemoryTableState(currentVersion = update.metadata.id, updates = currentTableState.updates :+ update)
           val updatedStates = currentTableUpdates + (table -> newTableState)
           Right(updatedStates)
       }
@@ -51,11 +50,12 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
     allUpdates.modifyEither(applyUpdate)
   }
 
-  override def tableState(table: TableName): F[TableState] =
+  override protected def tableState[O <: TableState.Ordering](table: TableName, timeOrder: O): F[TableState[F, O]] =
     for {
       allTableUpdates <- allUpdates.get
       tableState <- F.fromOption(allTableUpdates.get(table), unknownTableError(table))
-    } yield tableState
+      updates = if (timeOrder == TableState.TimeAscending) tableState.updates else tableState.updates.reverse
+    } yield TableState[F, O](tableState.currentVersion, Stream.emits(updates))
 
   override def initTable(
       table: TableName,
@@ -65,26 +65,42 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
       timestamp: Instant): F[Unit] = {
 
     val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
-    def newTableState = TableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
+    def newTableState = InMemoryTableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
 
     allUpdates.update { prev =>
-      if (prev.contains(table)) prev
-      else {
+      if (prev.contains(table))
+        prev
+      else
         prev + (table -> newTableState)
-      }
     }
+  }
+
+  override def isSnapshotTable(table: TableName): F[Boolean] = {
+    def isSnapshot(operations: List[TableOperation]): Boolean = operations match {
+      case InitTable(_, isSnapshot) :: _ => isSnapshot
+      case _                             => false
+    }
+
+    for {
+      tableUpdates <- allUpdates.get
+      tableState <- F.fromOption(tableUpdates.get(table), unknownTableError(table))
+      initialUpdate <- F.fromOption(tableState.updates.headOption,
+                                    new Exception(s"Invalid state for table $table, no updates found"))
+    } yield isSnapshot(initialUpdate.operations)
   }
 
 }
 
 object InMemoryVersionTracker {
 
-  type TableUpdates = Map[TableName, TableState]
+  final case class InMemoryTableState(currentVersion: CommitId, updates: List[TableUpdate])
+
+  type TableUpdates = Map[TableName, InMemoryTableState]
 
   /**
     * Safe constructor
     */
   def apply[F[_]](implicit F: Sync[F]): F[InMemoryVersionTracker[F]] =
-    Ref[F].of(Map.empty[TableName, TableState]).map(new InMemoryVersionTracker[F](_))
+    Ref[F].of(Map.empty[TableName, InMemoryTableState]).map(new InMemoryVersionTracker[F](_))
 
 }

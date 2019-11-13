@@ -24,7 +24,8 @@ class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie
 
   "getAllTables" should "be valid" in { check(DbVersionTracker.getAllTables) }
   "getTableMetadata" should "be valid" in { check(DbVersionTracker.getTableMetadata(table)) }
-  "getUpdates" should "be valid" in { check(DbVersionTracker.getUpdates(table)) }
+  "getUpdates in time order" should "be valid" in { check(DbVersionTracker.getUpdates(table, timeOrder = true)) }
+  "getUpdates in reverse order" should "be valid" in { check(DbVersionTracker.getUpdates(table, timeOrder = false)) }
   "addTable" should "be valid" in {
     check(
       DbVersionTracker

@@ -6,6 +6,7 @@ import cats.effect.Sync
 import cats.implicits._
 import dev.chronicles.core.Metastore.TableChanges
 import dev.chronicles.core.VersionTracker._
+import fs2.Stream
 
 /**
   * High level API for table version tracking, that aggregates the functionality from VersionTracker and Metastore
@@ -16,7 +17,7 @@ final class VersionedMetastore[F[_]: Sync](versionTracker: VersionTracker[F], me
   /**
     * List all known tables.
     */
-  def tables(): F[List[TableName]] =
+  def tables(): Stream[F, TableName] =
     versionTracker.tables()
 
   /**
@@ -40,7 +41,7 @@ final class VersionedMetastore[F[_]: Sync](versionTracker: VersionTracker[F], me
   /**
     * Get the history of updates for a given table, most recent first.
     */
-  def updates(table: TableName): F[List[TableUpdateMetadata]] =
+  def updates(table: TableName): Stream[F, TableUpdateMetadata] =
     versionTracker.updates(table)
 
   /**

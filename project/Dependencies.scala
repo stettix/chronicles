@@ -24,6 +24,8 @@ object Dependencies {
       "org.typelevel" %% "cats-effect" % "1.3.1"
     )
 
+  val fs2Version = "1.0.5"
+
   val doobieVersion = "0.7.0"
 
   lazy val doobieDependencies: Seq[ModuleID] =

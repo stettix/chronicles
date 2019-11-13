@@ -27,12 +27,10 @@ class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], cloc
       removePartition(tableName, partitionName, userId, message)
   }
 
-  def listTables(console: Console[F]): F[Unit] =
-    for {
-      tables <- delegate.tables()
-      tablesOutput = tables.map(_.fullyQualifiedName).mkString("\n")
-      _ <- console.println(tablesOutput)
-    } yield ()
+  def listTables(console: Console[F]): F[Unit] = {
+    val output = delegate.tables().map(_.fullyQualifiedName)
+    console.printlns(output).compile.drain
+  }
 
   def listPartitions(table: TableName): F[Unit] = {
     def partitionsList(tableVersion: TableVersion): Either[Throwable, List[String]] = tableVersion match {
@@ -59,12 +57,13 @@ class CliClient[F[_]](delegate: VersionedMetastore[F], console: Console[F], cloc
       _ <- console.println(s"Initialised table ${name.fullyQualifiedName}")
     } yield ()
 
-  def showTableHistory(tableName: TableName): F[Unit] =
-    for {
-      history <- delegate.updates(tableName)
-      historyOutput = history.map(u => s"${u.id}\t${u.timestamp}\t${u.userId}\t${u.message}")
-      _ <- console.println(historyOutput.mkString("\n"))
-    } yield ()
+  def showTableHistory(tableName: TableName): F[Unit] = {
+    val output = delegate
+      .updates(tableName)
+      .map(update => s"${update.id}\t${update.timestamp}\t${update.userId}\t${update.message}")
+
+    console.printlns(output).compile.drain
+  }
 
   def addPartition(
       tableName: TableName,
