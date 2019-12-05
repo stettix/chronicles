@@ -9,7 +9,7 @@ ThisBuild / description := "Version control for Big Data"
 lazy val commonSettings = Seq(
   version := "0.0.1",
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
-  scalaVersion := "2.11.12",
+  scalaVersion := "2.12.10",
   scalacOptions ++= scala211CompilerFlags,
   scalafmtOnCompile := true,
   addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),

@@ -13,14 +13,14 @@ import dev.chronicles.core.Metastore.TableOperation._
 import dev.chronicles.core.{Metastore, VersionPaths}
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[F] with LazyLogging {
   import GlueMetastore._
   override def currentVersion(table: TableName): F[TableVersion] = {
 
     def getPartitionColumns(glueTable: GlueTable): List[PartitionColumn] =
-      Option(glueTable.getPartitionKeys).toList.flatten.map { glueColumn =>
+      Option(glueTable.getPartitionKeys).map(_.asScala).toList.flatten.map { glueColumn =>
         PartitionColumn(glueColumn.getName)
       }
 
@@ -50,7 +50,8 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
 
     def toPartitionWithVersion(gluePartition: GluePartition): (Partition, Version) = {
 
-      val partitionColumnAndValue: List[(PartitionColumn, String)] = partitionColumns.zip(gluePartition.getValues)
+      val partitionColumnAndValue: List[(PartitionColumn, String)] =
+        partitionColumns.zip(gluePartition.getValues.asScala)
       val columnValues: List[ColumnValue] = partitionColumnAndValue.map(ColumnValue.tupled)
       val partition: Partition = toPartition(columnValues)
       val location = new URI(gluePartition.getStorageDescriptor.getLocation)
@@ -90,7 +91,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
       location = partitionLocation(tableLocation)
       partitionStorageDescriptor = extractFormatParams(glueTable.getStorageDescriptor).withLocation(location)
       partitionValues = partition.columnValues.map(_.value).toList
-      input = new PartitionInput().withValues(partitionValues).withStorageDescriptor(partitionStorageDescriptor)
+      input = new PartitionInput().withValues(partitionValues.asJava).withStorageDescriptor(partitionStorageDescriptor)
       addPartitionRequest = new CreatePartitionRequest()
         .withDatabaseName(table.schema)
         .withTableName(table.name)
@@ -104,13 +105,13 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
 
     def updatePartition(storageDescriptor: StorageDescriptor): F[Unit] = {
       val partitionValues = partition.columnValues.map(_.value).toList
-      val input = new PartitionInput().withValues(partitionValues).withStorageDescriptor(storageDescriptor)
+      val input = new PartitionInput().withValues(partitionValues.asJava).withStorageDescriptor(storageDescriptor)
 
       val updatePartitionRequest = new UpdatePartitionRequest()
         .withDatabaseName(table.schema)
         .withTableName(table.name)
         .withPartitionInput(input)
-        .withPartitionValueList(partitionValues)
+        .withPartitionValueList(partitionValues.asJava)
 
       F.delay(glue.updatePartition(updatePartitionRequest)).void
     }
@@ -135,7 +136,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
     val deletePartitionRequest = new DeletePartitionRequest()
       .withDatabaseName(table.schema)
       .withTableName(table.name)
-      .withPartitionValues(partitionValues)
+      .withPartitionValues(partitionValues.asJava)
 
     F.delay(glue.deletePartition(deletePartitionRequest)).void
   }
@@ -157,7 +158,7 @@ class GlueMetastore[F[_]](glue: AWSGlue)(implicit F: Sync[F]) extends Metastore[
   private[awsglue] def getGluePartitions(table: TableName): F[List[GluePartition]] = F.delay {
     val req = new GetPartitionsRequest().withDatabaseName(table.schema).withTableName(table.name)
     val getPartitionsResult: GetPartitionsResult = glue.getPartitions(req)
-    getPartitionsResult.getPartitions.toList
+    getPartitionsResult.getPartitions.asScala.toList
   }
 
   private[awsglue] def getGlueTable(table: TableName): F[GlueTable] = F.delay {
