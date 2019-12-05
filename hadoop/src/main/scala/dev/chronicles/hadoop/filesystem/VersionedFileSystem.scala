@@ -113,10 +113,6 @@ object VersionedFileSystem extends LazyLogging {
   private implicit def versionDecoder: Decoder[Version] =
     Decoder.decodeString.emap(s => Version.parse(s).leftMap(_.getMessage))
 
-  private implicit def instantDecoder: Decoder[Instant] = Decoder.decodeString.emap { str =>
-    Either.catchNonFatal(Instant.parse(str)).leftMap(t => s"Unable to parse instant '$str': " + t.getMessage)
-  }
-
   private implicit def partitionEncoder: KeyEncoder[Partition] =
     KeyEncoder.instance { partition =>
       partition.columnValues.map(cv => s"${cv.column.name}=${cv.value}").toList.mkString("/")
