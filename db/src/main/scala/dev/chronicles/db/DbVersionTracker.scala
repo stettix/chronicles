@@ -11,6 +11,7 @@ import dev.chronicles.core._
 import doobie._
 import doobie.enum.TransactionIsolation.TransactionSerializable
 import doobie.implicits._
+import doobie.implicits.legacy.instant._
 import doobie.util.transactor.{Strategy, Transactor}
 import fs2.Stream
 
