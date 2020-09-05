@@ -26,8 +26,7 @@ object Dependencies {
 
   val fs2Version = "2.4.4"
 
-  //val doobieVersion = "0.9.0"
-  val doobieVersion = "0.7.0"
+  val doobieVersion = "0.9.0"
 
   lazy val doobieDependencies: Seq[ModuleID] =
     Seq(
