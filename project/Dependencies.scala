@@ -20,12 +20,13 @@ object Dependencies {
 
   lazy val catsDependencies: Seq[ModuleID] =
     Seq(
-      "org.typelevel" %% "cats-core" % "1.6.1",
-      "org.typelevel" %% "cats-effect" % "1.3.1"
+      "org.typelevel" %% "cats-core" % "2.1.1",
+      "org.typelevel" %% "cats-effect" % "2.1.4"
     )
 
-  val fs2Version = "1.0.5"
+  val fs2Version = "2.4.4"
 
+  //val doobieVersion = "0.9.0"
   val doobieVersion = "0.7.0"
 
   lazy val doobieDependencies: Seq[ModuleID] =
@@ -37,8 +38,8 @@ object Dependencies {
 
   lazy val scalatest = "org.scalatest" %% "scalatest" % "3.0.5"
 
-  val circeVersion = "0.11.1"
+  val circeVersion = "0.12.3"
 
-  val pureConfigVersion = "0.12.1"
+  val pureConfigVersion = "0.13.0"
 
 }
