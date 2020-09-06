@@ -5,8 +5,8 @@ import java.nio.file.Paths
 
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.spark.SparkHiveSuite
 import dev.chronicles.hadoop.filesystem.VersionedFileSystem
+import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
@@ -33,8 +33,10 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
   "Writing multiple versions of a snapshot dataset" should "produce distinct versions" in {
     import spark.implicits._
 
-    val versionContext = TestVersionContext.default.unsafeRunSync()
+    val versionContext = TestVersionContext.default(spark).unsafeRunSync()
     import versionContext.metastore
+    val sparkSupport = SparkSupport(versionContext)
+    import sparkSupport.syntax._
 
     val userId = UserId("test user")
 
@@ -50,7 +52,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
       User("user-2", "Bob", "bob@mail.com"),
       User("user-3", "Carol", "carol@mail.com")
     )
-    loader.insert(identitiesDay1.toDS(), userId, "Committing first version from test")
+    identitiesDay1.toDS().versionedInsertInto(table, userId, "Committing first version from test")
 
     // We should see a new table
     metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
@@ -69,7 +71,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
       User("user-3", "Carol", "carol@othermail.com"),
       User("user-4", "Dave", "dave@mail.com")
     )
-    loader.insert(identitiesDay2.toDS(), userId, "Committing second version from test")
+    identitiesDay2.toDS().versionedInsertInto(table, userId, "Committing second version from test")
 
     // We should still see a single table
     metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)

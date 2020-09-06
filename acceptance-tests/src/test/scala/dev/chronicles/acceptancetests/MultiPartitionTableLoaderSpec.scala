@@ -6,7 +6,7 @@ import java.sql.{Date, Timestamp}
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.spark.SparkHiveSuite
+import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -25,6 +25,8 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
     import versionContext.metastore
+    val sparkSupport = SparkSupport(versionContext)
+    import sparkSupport.syntax._
 
     val table = TableDefinition(
       TableName(schema, "ad_impressions"),
@@ -54,7 +56,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       AdImpression("user-3", "ad-2", Timestamp.valueOf("2019-03-14 00:00:20"), Date.valueOf("2019-03-14"))
     )
 
-    loader.insert(impressionsDay1.toDS(), userId1, "Day 1 initial commit")
+    impressionsDay1.toDS().versionedInsertInto(table, userId1, "Day 1 initial commit")
     loader.data().collect() should contain theSameElementsAs impressionsDay1
 
     val initialPartitionVersions = partitionVersions(tableDir)
@@ -67,7 +69,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     )
     val userId2 = UserId("test user 2")
 
-    loader.insert(impressionsDay2.toDS(), userId2, "Day 2 initial commit")
+    impressionsDay2.toDS().versionedInsertInto(table, userId2, "Day 2 initial commit")
     loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     val partitionVersionsDay2 = partitionVersions(tableDir)
@@ -82,7 +84,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     val impressionsDay2Updated = impressionsDay2 ++ List(
       AdImpression("user-5", "ad-3", Timestamp.valueOf("2019-03-15 00:01:00"), Date.valueOf("2019-03-15"))
     )
-    loader.insert(impressionsDay2Updated.toDS(), userId1, "Day 2 update")
+    impressionsDay2Updated.toDS().versionedInsertInto(table, userId1, "Day 2 update")
 
     // Query to check we see the updated version
     loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
