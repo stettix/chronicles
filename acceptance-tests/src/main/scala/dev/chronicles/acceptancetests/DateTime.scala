@@ -1,4 +1,4 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import java.sql.{Date, Timestamp}
 import java.time.{ZoneId, ZonedDateTime}

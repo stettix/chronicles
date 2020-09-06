@@ -1,4 +1,4 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import cats.effect.IO
 import dev.chronicles.core.{InMemoryVersionTracker, Version, VersionedMetastore}

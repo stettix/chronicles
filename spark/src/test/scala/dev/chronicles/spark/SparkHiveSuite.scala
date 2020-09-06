@@ -92,7 +92,7 @@ trait SparkHiveSuite extends BeforeAndAfterAll with BeforeAndAfterEach with Lazy
     */
   protected def customConfig: Map[String, String] = Map.empty
 
-  implicit lazy val ss: SparkSession = spark
+  implicit lazy val sparkSession: SparkSession = spark
 
   override def afterAll(): Unit = {
     Try(FileUtils.deleteDirectory(rootDir.toFile))

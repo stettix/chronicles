@@ -1,18 +1,18 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import java.nio.file.Path
 import java.sql.{Date, Timestamp}
+import java.time.Instant
 
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.spark.SparkHiveSuite
 import dev.chronicles.hadoop.filesystem.VersionedFileSystem
+import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
-  * This example contains code that writes example event data to a table with multiple partition columns.
-  * It demonstrates how individual partitions in such a table can be updated using versioning.
+  * This tests the behaviour of a table partitioned by multiple columns.
   */
 class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
@@ -26,6 +26,8 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
     import versionContext.metastore
+    val sparkSupport = SparkSupport(versionContext)
+    import sparkSupport.syntax._
 
     val table = TableDefinition(
       TableName(schema, "ad_impressions"),
@@ -44,10 +46,15 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
                  |LOCATION '${table.location}'
     """.stripMargin
 
-    val loader = new TableLoader[AdImpression](versionContext, table, ddl, isSnapshot = false)
     val userId1 = UserId("test user 1")
 
-    loader.initTable(userId1, UpdateMessage("init"))
+    // Create underlying table
+    spark.sql(ddl)
+
+    // Initialise version tracking for table
+    versionContext.metastore
+      .initTable(table.name, isSnapshot = false, userId1, UpdateMessage("init"), Instant.now())
+      .unsafeRunSync()
 
     val impressionsDay1 = List(
       AdImpression("user-1", "ad-1", Timestamp.valueOf("2019-03-13 23:59:00"), Date.valueOf("2019-03-14")),
@@ -55,8 +62,10 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       AdImpression("user-3", "ad-2", Timestamp.valueOf("2019-03-14 00:00:20"), Date.valueOf("2019-03-14"))
     )
 
-    loader.insert(impressionsDay1.toDS(), userId1, "Day 1 initial commit")
-    loader.data().collect() should contain theSameElementsAs impressionsDay1
+    impressionsDay1.toDS().versionedInsertInto(table, userId1, "Day 1 initial commit")
+
+    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
+    tableData.collect() should contain theSameElementsAs impressionsDay1
 
     val initialPartitionVersions = partitionVersions(tableDir)
     initialPartitionVersions("impression_date=2019-03-13" -> "processed_date=2019-03-14") should have size 1
@@ -68,8 +77,8 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     )
     val userId2 = UserId("test user 2")
 
-    loader.insert(impressionsDay2.toDS(), userId2, "Day 2 initial commit")
-    loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
+    impressionsDay2.toDS().versionedInsertInto(table, userId2, "Day 2 initial commit")
+    tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     val partitionVersionsDay2 = partitionVersions(tableDir)
     partitionVersionsDay2(("impression_date=2019-03-13", "processed_date=2019-03-14")) shouldBe initialPartitionVersions(
@@ -83,10 +92,10 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     val impressionsDay2Updated = impressionsDay2 ++ List(
       AdImpression("user-5", "ad-3", Timestamp.valueOf("2019-03-15 00:01:00"), Date.valueOf("2019-03-15"))
     )
-    loader.insert(impressionsDay2Updated.toDS(), userId1, "Day 2 update")
+    impressionsDay2Updated.toDS().versionedInsertInto(table, userId1, "Day 2 update")
 
     // Query to check we see the updated version
-    loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
+    tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
 
     // Check on-disk storage
     val updatedPartitionVersionsDay = partitionVersions(tableDir)
@@ -107,11 +116,11 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
     // Roll back to previous version
     metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
-    loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
+    tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     // Roll forward to latest
     metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
-    loader.data().collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
+    tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
   }
 
   def partitionVersions(tableLocation: Path): Map[(String, String), List[String]] = {
