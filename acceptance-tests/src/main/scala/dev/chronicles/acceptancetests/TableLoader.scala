@@ -23,14 +23,6 @@ class TableLoader[T <: Product: TypeTag](
 
   import spark.implicits._
 
-  def initTable(userId: UserId, message: UpdateMessage): Unit = {
-    // Create table in underlying metastore
-    spark.sql(createTableDdl)
-
-    // Initialise version tracking for table
-    versionContext.metastore.initTable(table.name, isSnapshot, userId, message, Instant.now()).unsafeRunSync()
-  }
-
   def data(): Dataset[T] =
     spark.table(table.name.fullyQualifiedName).as[T]
 

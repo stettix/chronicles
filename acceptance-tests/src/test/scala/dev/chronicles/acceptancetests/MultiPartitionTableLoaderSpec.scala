@@ -2,6 +2,7 @@ package dev.chronicles.acceptancetests
 
 import java.nio.file.Path
 import java.sql.{Date, Timestamp}
+import java.time.Instant
 
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
@@ -48,7 +49,13 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     val loader = new TableLoader[AdImpression](versionContext, table, ddl, isSnapshot = false)
     val userId1 = UserId("test user 1")
 
-    loader.initTable(userId1, UpdateMessage("init"))
+    // Create underlying table
+    spark.sql(ddl)
+
+    // Initialise version tracking for table
+    versionContext.metastore
+      .initTable(table.name, isSnapshot = false, userId1, UpdateMessage("init"), Instant.now())
+      .unsafeRunSync()
 
     val impressionsDay1 = List(
       AdImpression("user-1", "ad-1", Timestamp.valueOf("2019-03-13 23:59:00"), Date.valueOf("2019-03-14")),

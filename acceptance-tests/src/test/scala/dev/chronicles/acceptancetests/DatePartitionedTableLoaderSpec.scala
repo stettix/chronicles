@@ -3,6 +3,7 @@ package dev.chronicles.acceptancetests
 import java.net.URI
 import java.nio.file.Paths
 import java.sql.{Date, Timestamp}
+import java.time.Instant
 
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker._
@@ -49,7 +50,14 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     val loader = new TableLoader[Pageview](versionContext, table, ddl, isSnapshot = false)
 
     val userId = UserId("test user")
-    loader.initTable(userId, UpdateMessage("init"))
+
+    // Create underlying table
+    spark.sql(ddl)
+
+    // Initialise version tracking for table
+    versionContext.metastore
+      .initTable(table.name, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
+      .unsafeRunSync()
     metastore.updates(table.name).compile.toList.unsafeRunSync() should have size 1
 
     val pageviewsDay1 = List(

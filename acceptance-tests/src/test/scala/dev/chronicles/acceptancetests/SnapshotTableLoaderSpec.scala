@@ -2,6 +2,7 @@ package dev.chronicles.acceptancetests
 
 import java.net.URI
 import java.nio.file.Paths
+import java.time.Instant
 
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
@@ -44,7 +45,13 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     metastore.tables().compile.toList.unsafeRunSync() shouldBe Nil
 
-    loader.initTable(userId, UpdateMessage("init"))
+    // Create underlying table
+    spark.sql(ddl)
+
+    // Initialise version tracking for table
+    versionContext.metastore
+      .initTable(table.name, isSnapshot = true, userId, UpdateMessage("init"), Instant.now())
+      .unsafeRunSync()
 
     // Write the data to the table
     val identitiesDay1 = List(
