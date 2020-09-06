@@ -1,4 +1,4 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import java.nio.file.Path
 import java.sql.{Date, Timestamp}
@@ -11,8 +11,7 @@ import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
-  * This example contains code that writes example event data to a table with multiple partition columns.
-  * It demonstrates how individual partitions in such a table can be updated using versioning.
+  * This tests the behaviour of a table partitioned by multiple columns.
   */
 class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
 

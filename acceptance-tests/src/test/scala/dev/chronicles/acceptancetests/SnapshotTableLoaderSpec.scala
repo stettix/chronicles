@@ -1,4 +1,4 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import java.net.URI
 import java.nio.file.Paths
@@ -10,7 +10,7 @@ import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
-  * This is an example of loading data into a 'snapshot' table, that is, a table where we replace all the content
+  * This tests the behaviour of an unpartitioned table, i.e. a table where we replace all the content
   * every time we write to it (no partial updates).
   */
 class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {

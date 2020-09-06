@@ -1,4 +1,4 @@
-package dev.chronicles.examples
+package dev.chronicles.acceptancetests
 
 import java.net.URI
 import java.nio.file.Paths
@@ -12,8 +12,7 @@ import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
-  * This example contains code that writes example event data to a table that has a single date partition.
-  * It demonstrates how individual partitions in such a table can be updated using versioning.
+  * This tests the behaviour of a table partitioned by a single column, where partitions are versioned individually.
   */
 class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
