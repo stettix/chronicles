@@ -35,7 +35,6 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     import spark.implicits._
 
     val versionContext = TestVersionContext.default(spark).unsafeRunSync()
-    import versionContext.metastore
     val sparkSupport = SparkSupport(versionContext)
     import sparkSupport.syntax._
 
@@ -43,7 +42,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     def tableData = spark.table(table.name.fullyQualifiedName).as[User]
 
-    metastore.tables().compile.toList.unsafeRunSync() shouldBe Nil
+    versionContext.metastore.tables().compile.toList.unsafeRunSync() shouldBe Nil
 
     // Create underlying table
     spark.sql(ddl)
@@ -62,7 +61,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     identitiesDay1.toDS().versionedInsertInto(table, userId, "Committing first version from test")
 
     // We should see a new table
-    metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
+    versionContext.metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
 
     // Query the table to make sure we have the right data
     val day1TableData = tableData.collect()
@@ -81,7 +80,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     identitiesDay2.toDS().versionedInsertInto(table, userId, "Committing second version from test")
 
     // We should still see a single table
-    metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
+    versionContext.metastore.tables().compile.toList.unsafeRunSync() shouldBe List(table.name)
 
     // Query it to make sure we have the right data
     val day2TableData = tableData.collect()
@@ -93,15 +92,15 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     updatedVersionDirs should contain allElementsOf initialTableVersionDirs
 
     // Get version history
-    val versionTracker = metastore.updates(table.name).compile.toList.unsafeRunSync()
+    val versionTracker = versionContext.metastore.updates(table.name).compile.toList.unsafeRunSync()
     versionTracker.size shouldBe 3 // One initial version plus two written versions
 
     // Roll back to previous version
-    metastore.checkout(table.name, versionTracker.drop(1).head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionTracker.drop(1).head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs identitiesDay1
 
     // Roll forward to latest
-    metastore.checkout(table.name, versionTracker.head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionTracker.head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs identitiesDay2
   }
 

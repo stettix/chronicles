@@ -25,7 +25,6 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     import spark.implicits._
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
-    import versionContext.metastore
     val sparkSupport = SparkSupport(versionContext)
     import sparkSupport.syntax._
 
@@ -111,15 +110,15 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       "impression_date=2019-03-14" -> "processed_date=2019-03-15")
 
     // Get version history
-    val versionHistory = metastore.updates(table.name).compile.toList.unsafeRunSync()
+    val versionHistory = versionContext.metastore.updates(table.name).compile.toList.unsafeRunSync()
     versionHistory.size shouldBe 4 // One initial version plus three written versions
 
     // Roll back to previous version
-    metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     // Roll forward to latest
-    metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
   }
 
