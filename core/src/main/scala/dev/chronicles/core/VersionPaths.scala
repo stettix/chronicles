@@ -9,7 +9,7 @@ import cats.syntax.either._
   */
 object VersionPaths {
 
-  val VersionColumn = "version"
+  val VersionColumn = "_version"
 
   /**
     * @return a path for a given partition version and base path
