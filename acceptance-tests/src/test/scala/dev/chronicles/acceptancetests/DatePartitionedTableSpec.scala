@@ -157,7 +157,7 @@ class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuit
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(s"$basePath/$partition")
     val dirList = Option(dir.toFile.list()).map(_.toList).getOrElse(Nil)
-    dirList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
+    dirList.filter(_.matches(VersionPaths.VersionColumn + "=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }

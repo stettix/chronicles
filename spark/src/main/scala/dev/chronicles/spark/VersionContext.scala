@@ -82,9 +82,9 @@ object SparkSupport {
       for {
         tableOperations <- tableOperationsForVersion(version)
 
-        datasetWithVersion <- F.delay(dataset.withColumn("version", lit(version.label)))
+        datasetWithVersion <- F.delay(dataset.withColumn(VersionPaths.VersionColumn, lit(version.label)))
         originalPartitions = table.partitionSchema.columns.map(_.name)
-        partitionsWithVersion = originalPartitions :+ "version"
+        partitionsWithVersion = originalPartitions :+ VersionPaths.VersionColumn
 
         _ <- F.delay(
           datasetWithVersion.toDF.write

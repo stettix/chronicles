@@ -108,7 +108,7 @@ class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
     assert(tableLocation.toString.startsWith("file://"))
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(basePath)
-    dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
+    dir.toFile.list().toList.filter(_.matches(VersionPaths.VersionColumn + "=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }

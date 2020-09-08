@@ -9,6 +9,8 @@ import cats.syntax.either._
   */
 object VersionPaths {
 
+  val VersionColumn = "version"
+
   /**
     * @return a path for a given partition version and base path
     */
@@ -17,7 +19,7 @@ object VersionPaths {
       partitionPath
     else {
       def normalised(path: String): String = if (path.endsWith("/")) path else path + "/"
-      def versioned(path: String): String = s"${path}version=${version.label}"
+      def versioned(path: String): String = s"$path$VersionColumn=${version.label}"
       new URI(versioned(normalised(partitionPath.toString)))
     }
 
@@ -28,7 +30,7 @@ object VersionPaths {
     val maybeVersionStr: Option[String] = location.toString.split("/").lastOption
     val parsedVersion = for {
       path <- maybeVersionStr.toRight(new Exception(s"Empty path: $location"))
-      version <- Version.parse(path.drop("version=".length)) // ## TODO: clean up!!
+      version <- Version.parse(path.drop(s"$VersionColumn=".length)) // ## TODO: clean up!!
     } yield version
 
     parsedVersion.getOrElse(Version.Unversioned)
