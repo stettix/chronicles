@@ -65,7 +65,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
       users.toDS().versionedInsertInto(usersTable, userId, "Test insert users into table")
 
     // Check that data was written correctly to the right place
-    readDataset[User](FileFormat.Orc, resolveTablePath("version=" + version1.label))
+    readDataset[User](FileFormat.Orc, resolveTablePath(VersionPaths.VersionColumn + "=" + version1.label))
       .collect() should contain theSameElementsAs users
 
     // Check that we performed the right version updates and returned the right results
