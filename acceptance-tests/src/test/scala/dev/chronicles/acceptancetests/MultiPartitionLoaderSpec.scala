@@ -131,7 +131,7 @@ class MultiPartitionLoaderSpec extends FlatSpec with Matchers with SparkHiveSuit
     }
 
     def versions(dir: Path): List[String] =
-      dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
+      dir.toFile.list().toList.filter(_.matches(VersionPaths.VersionColumn + "=" + Version.TimestampAndUuidRegex.regex))
 
     val impressionDatePartitions: List[String] = datePartitions("impression_date", tableLocation)
 
