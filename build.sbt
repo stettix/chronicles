@@ -70,21 +70,6 @@ lazy val `chronicles-cli` = project
   ))
   .dependsOn(`chronicles-core`, `chronicles-db`)
 
-lazy val `chronicles-hadoop` = project
-  .in(file("hadoop"))
-  .settings(commonSettings)
-  .settings(libraryDependencies ++= Seq(
-    "io.circe" %% "circe-core" % circeVersion,
-    "io.circe" %% "circe-generic" % circeVersion,
-    "io.circe" %% "circe-parser" % circeVersion,
-    "commons-io" % "commons-io" % "2.6",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-    "log4j" % "log4j" % "1.2.17"
-  ) ++ hadoopDependencies)
-  .settings(parallelExecution in Test := false)
-  .settings(fork in Test := true)
-  .dependsOn(`chronicles-core` % "compile->compile;test->test")
-
 lazy val `chronicles-spark` = project
   .in(file("spark"))
   .settings(commonSettings)
