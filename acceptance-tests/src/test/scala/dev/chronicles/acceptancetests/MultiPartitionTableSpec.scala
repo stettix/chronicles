@@ -7,7 +7,6 @@ import java.time.Instant
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -16,7 +15,8 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import MultiPartitionTableSpec._
 
@@ -34,6 +34,8 @@ class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite
       PartitionSchema(List(PartitionColumn("impression_date"), PartitionColumn("processed_date"))),
       FileFormat.Orc
     )
+
+    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
 
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `user_id` string,
@@ -63,7 +65,6 @@ class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     impressionsDay1.toDS().versionedInsertInto(table, userId1, "Day 1 initial commit")
 
-    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
     tableData.collect() should contain theSameElementsAs impressionsDay1
 
     val initialPartitionVersions = partitionVersions(tableDir)
@@ -130,7 +131,7 @@ class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite
     }
 
     def versions(dir: Path): List[String] =
-      dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+      dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
 
     val impressionDatePartitions: List[String] = datePartitions("impression_date", tableLocation)
 

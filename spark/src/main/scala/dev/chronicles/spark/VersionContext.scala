@@ -1,6 +1,5 @@
 package dev.chronicles.spark
 
-import java.net.URI
 import java.time.Instant
 
 import cats.effect.{Effect, Sync}
@@ -9,8 +8,7 @@ import dev.chronicles.core.Metastore.TableChanges
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem.VersionedFileSystemConfig
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
+import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{Dataset, Row, SaveMode}
 
 /**
@@ -59,33 +57,44 @@ object SparkSupport {
 
     import versionContext._
 
-    def writePartitionedDataset(version: Version): F[List[TableOperation]] =
+    // Check that the Spark config includes the dynamic overwrite partition setting, otherwise blow up with a helpful error
+    val checkSparkConfigs: F[Unit] =
+      if (!dataset.sparkSession.sparkContext.getConf
+            .getOption("spark.sql.sources.partitionOverwriteMode")
+            .contains("dynamic"))
+        F.raiseError(
+          new Error("The Spark configuration must have the spark.sql.sources.partitionOverwriteMode set to 'dynamic'"))
+      else
+        F.unit
+
+    def writeWithVersion(version: Version): F[List[TableOperation]] =
       for {
-        // Find the partition values in the given dataset
-        datasetPartitions <- F.delay(partitionValues(dataset, table.partitionSchema))
+        // Find the operations to represent the changes we're writing to th etable
+        tableOperations <- if (table.isSnapshot) {
+          F.pure(List(AddTableVersion(version)))
+        } else {
+          val datasetPartitions = F.delay(partitionValues(dataset, table.partitionSchema))
+          datasetPartitions.map(_.map(partition => AddPartitionVersion(partition, version)))
+        }
 
-        // Use the same version for each of the partitions we'll be writing
-        partitionVersions = datasetPartitions.map(p => p -> version).toMap
+        datasetWithVersion <- F.delay(dataset.withColumn("version", lit(version.label)))
+        originalPartitions = table.partitionSchema.columns.map(_.name)
+        partitionsWithVersion = originalPartitions :+ "version"
 
-        // Write Spark dataset to the versioned path
-        _ <- F.delay(writeVersionedPartitions(dataset, table, partitionVersions))
+        _ <- F.delay(
+          datasetWithVersion.toDF.write
+            .partitionBy(partitionsWithVersion: _*)
+            .mode(SaveMode.Append)
+            .format(table.format.name)
+            .save(table.location.toString))
 
-      } yield datasetPartitions.map(partition => AddPartitionVersion(partition, version))
-
-    def writeSnapshotDataset(version: Version): F[List[TableOperation]] = {
-      val path = VersionPaths.pathFor(table.location, version)
-      F.delay(dataset.write.parquet(path.toString)).as(List(AddTableVersion(version)))
-    }
+      } yield tableOperations
 
     for {
+      _ <- checkSparkConfigs
       newVersion <- generateVersion
-
-      // Write the data
-      operations <- if (table.isSnapshot) writeSnapshotDataset(newVersion) else writePartitionedDataset(newVersion)
-
-      // Commit version change and update metastore
+      operations <- writeWithVersion(newVersion)
       result <- metastore.commit(table.name, TableUpdate(userId, UpdateMessage(message), Instant.now(), operations))
-
     } yield result
   }
 
@@ -94,10 +103,9 @@ object SparkSupport {
     */
   private[spark] def partitionValues[T](dataset: Dataset[T], partitionSchema: PartitionSchema): List[Partition] = {
     // Query dataset for partitions
-    // NOTE: this implementation has not been optimised yet
     val partitionColumnsList = partitionSchema.columns.map(_.name)
     val partitionsDf = dataset.selectExpr(partitionColumnsList: _*).distinct()
-    val partitionRows = partitionsDf.collect().toList
+    val partitionRows = partitionsDf.collect()
 
     def rowToPartition(row: Row): Partition = {
       val partitionColumnValues: List[(Partition.PartitionColumn, String)] =
@@ -111,35 +119,6 @@ object SparkSupport {
       }
     }
 
-    partitionRows.map(rowToPartition)
+    partitionRows.map(rowToPartition).toList
   }
-
-  /**
-    * Write the given partitioned dataset, storing each partition in the associated path.
-    */
-  private[spark] def writeVersionedPartitions[T](
-      dataset: Dataset[T],
-      table: TableDefinition,
-      partitionVersions: Map[Partition, Version]): Unit = {
-
-    VersionedFileSystem.writeConfig(VersionedFileSystemConfig(partitionVersions),
-                                    dataset.sparkSession.sparkContext.hadoopConfiguration)
-
-    val partitions = table.partitionSchema.columns.map(_.name)
-
-    val versionedUri = setVersionedScheme(table.location)
-
-    dataset.toDF.write
-      .partitionBy(partitions: _*)
-      .mode(SaveMode.Append)
-      .format(table.format.name)
-      .save(versionedUri.toString)
-  }
-
-  private[spark] def setVersionedScheme(underlyingUri: URI): URI =
-    new URI(VersionedFileSystem.scheme,
-            underlyingUri.getAuthority,
-            underlyingUri.getPath,
-            underlyingUri.getQuery,
-            underlyingUri.getFragment)
 }

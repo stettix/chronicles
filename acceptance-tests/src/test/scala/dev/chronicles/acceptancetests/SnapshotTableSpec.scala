@@ -6,7 +6,6 @@ import java.time.Instant
 
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -16,7 +15,8 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import SnapshotTableSpec._
 
@@ -108,7 +108,7 @@ class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
     assert(tableLocation.toString.startsWith("file://"))
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(basePath)
-    dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+    dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }
