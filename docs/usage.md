@@ -25,7 +25,7 @@ You would normally do this only once in the startup of your Spark job, using the
 
 **TBD!**
 
-Then, in code that wants to use the API on `Dataset`s, you use the following code to import the extended functionality:
+Then, in code that wants to use the API on `Dataset`s, use the following code to import the extended functionality:
 
 ```scala
   import dev.chronicles.spark.SparkSupport
