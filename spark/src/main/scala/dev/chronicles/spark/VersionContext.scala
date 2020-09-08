@@ -57,7 +57,8 @@ object SparkSupport {
 
     import versionContext._
 
-    // Check that the Spark config includes the dynamic overwrite partition setting, otherwise blow up with a helpful error
+    // Check that the Spark config includes the dynamic overwrite partition setting, which is essential
+    // for writing additional partitions to a dataset without overwriting existing data.
     val checkSparkConfigs: F[Unit] =
       if (!dataset.sparkSession.sparkContext.getConf
             .getOption("spark.sql.sources.partitionOverwriteMode")
@@ -67,15 +68,19 @@ object SparkSupport {
       else
         F.unit
 
+    // Find the operations to represent the changes we're writing to the table
+    def tableOperationsForVersion(version: Version): F[List[TableOperation]] =
+      if (table.isSnapshot) {
+        F.pure(List(AddTableVersion(version)))
+      } else {
+        val datasetPartitions = F.delay(partitionValues(dataset, table.partitionSchema))
+        datasetPartitions.map(_.map(partition => AddPartitionVersion(partition, version)))
+      }
+
+    // Write table data to partition locations
     def writeWithVersion(version: Version): F[List[TableOperation]] =
       for {
-        // Find the operations to represent the changes we're writing to th etable
-        tableOperations <- if (table.isSnapshot) {
-          F.pure(List(AddTableVersion(version)))
-        } else {
-          val datasetPartitions = F.delay(partitionValues(dataset, table.partitionSchema))
-          datasetPartitions.map(_.map(partition => AddPartitionVersion(partition, version)))
-        }
+        tableOperations <- tableOperationsForVersion(version)
 
         datasetWithVersion <- F.delay(dataset.withColumn("version", lit(version.label)))
         originalPartitions = table.partitionSchema.columns.map(_.name)
