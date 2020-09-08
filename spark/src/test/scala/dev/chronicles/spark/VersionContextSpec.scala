@@ -18,6 +18,9 @@ import scala.reflect.runtime.universe.TypeTag
 
 class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
+
   import spark.implicits._
 
   // Stub version generator that returns the same version on every invocation
@@ -62,7 +65,8 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
       users.toDS().versionedInsertInto(usersTable, userId, "Test insert users into table")
 
     // Check that data was written correctly to the right place
-    readDataset[User](resolveTablePath(version1.label)).collect() should contain theSameElementsAs users
+    readDataset[User](FileFormat.Orc, resolveTablePath("version=" + version1.label))
+      .collect() should contain theSameElementsAs users
 
     // Check that we performed the right version updates and returned the right results
     tableVersion shouldBe SnapshotTableVersion(version1)
@@ -124,7 +128,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
       events.toDS().versionedInsertInto(eventsTable, userId, "Test insert events into table")
 
     // Check that data was written correctly to the right place
-    readDataset[Event](tableUri)
+    readDataset[Event](FileFormat.Parquet, tableUri)
       .collect() should contain theSameElementsAs (eventsDay1 ++ eventsDay2 ++ eventsDay3)
 
     // Check that we performed the right version updates and returned the right results
@@ -144,9 +148,10 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableUpdate.userId shouldBe userId
   }
 
-  private def readDataset[T <: Product: TypeTag](path: URI): Dataset[T] =
+  private def readDataset[T <: Product: TypeTag](fileFormat: FileFormat, path: URI): Dataset[T] =
     spark.read
-      .parquet(path.toString)
+      .format(fileFormat.name)
+      .load(path.toString)
       .as[T]
 
   class StubMetastore(currentVersion: TableVersion, computedChanges: TableChanges) extends Metastore[IO] {
