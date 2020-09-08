@@ -6,7 +6,6 @@ import java.time.Instant
 
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -14,11 +13,12 @@ import org.scalatest.{FlatSpec, Matchers}
   * This tests the behaviour of an unpartitioned table, i.e. a table where we replace all the content
   * every time we write to it (no partial updates).
   */
-class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
-  import SnapshotTableLoaderSpec._
+  import SnapshotTableSpec._
 
   val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Parquet)
 
@@ -108,12 +108,12 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
     assert(tableLocation.toString.startsWith("file://"))
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(basePath)
-    dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+    dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }
 
-object SnapshotTableLoaderSpec {
+object SnapshotTableSpec {
 
   case class User(id: String, name: String, email: String)
 

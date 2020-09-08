@@ -17,7 +17,7 @@ object VersionPaths {
       partitionPath
     else {
       def normalised(path: String): String = if (path.endsWith("/")) path else path + "/"
-      def versioned(path: String): String = s"$path${version.label}"
+      def versioned(path: String): String = s"${path}version=${version.label}"
       new URI(versioned(normalised(partitionPath.toString)))
     }
 
@@ -28,7 +28,7 @@ object VersionPaths {
     val maybeVersionStr: Option[String] = location.toString.split("/").lastOption
     val parsedVersion = for {
       path <- maybeVersionStr.toRight(new Exception(s"Empty path: $location"))
-      version <- Version.parse(path)
+      version <- Version.parse(path.drop("version=".length)) // ## TODO: clean up!!
     } yield version
 
     parsedVersion.getOrElse(Version.Unversioned)

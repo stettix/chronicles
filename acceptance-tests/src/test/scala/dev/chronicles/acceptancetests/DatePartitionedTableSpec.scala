@@ -8,18 +8,18 @@ import java.time.Instant
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
   * This tests the behaviour of a table partitioned by a single column, where partitions are versioned individually.
   */
-class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
-  import DatePartitionedTableLoaderSpec._
+  import DatePartitionedTableSpec._
 
   val table = TableDefinition(
     TableName(schema, "pageview"),
@@ -51,6 +51,8 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     // Create underlying table
     spark.sql(ddl)
 
+    def tableData = spark.table(table.name.fullyQualifiedName).as[Pageview]
+
     // Initialise version tracking for table
     versionContext.metastore
       .initTable(table.name, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
@@ -65,8 +67,6 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     )
 
     pageviewsDay1.toDS().versionedInsertInto(table, userId, "Day 1 initial commit")
-
-    def tableData = spark.table(table.name.fullyQualifiedName).as[Pageview]
 
     tableData.collect() should contain theSameElementsAs pageviewsDay1
 
@@ -157,12 +157,12 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(s"$basePath/$partition")
     val dirList = Option(dir.toFile.list()).map(_.toList).getOrElse(Nil)
-    dirList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+    dirList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }
 
-object DatePartitionedTableLoaderSpec {
+object DatePartitionedTableSpec {
   case class Pageview(id: String, path: String, timestamp: Timestamp, date: Date)
 
   object Pageview {

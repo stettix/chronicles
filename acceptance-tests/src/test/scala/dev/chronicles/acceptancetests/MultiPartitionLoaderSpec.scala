@@ -7,18 +7,18 @@ import java.time.Instant
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker.{UpdateMessage, UserId}
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**
   * This tests the behaviour of a table partitioned by multiple columns.
   */
-class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class MultiPartitionLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig =
+    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
-  import MultiPartitionTableLoaderSpec._
+  import MultiPartitionLoaderSpec._
 
   "Writing multiple versions of a dataset with multiple partition columns" should "produce distinct partition versions" in {
 
@@ -34,6 +34,8 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       PartitionSchema(List(PartitionColumn("impression_date"), PartitionColumn("processed_date"))),
       FileFormat.Orc
     )
+
+    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
 
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `user_id` string,
@@ -63,7 +65,6 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
     impressionsDay1.toDS().versionedInsertInto(table, userId1, "Day 1 initial commit")
 
-    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
     tableData.collect() should contain theSameElementsAs impressionsDay1
 
     val initialPartitionVersions = partitionVersions(tableDir)
@@ -130,7 +131,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
     }
 
     def versions(dir: Path): List[String] =
-      dir.toFile.list().toList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+      dir.toFile.list().toList.filter(_.matches("version=" + Version.TimestampAndUuidRegex.regex))
 
     val impressionDatePartitions: List[String] = datePartitions("impression_date", tableLocation)
 
@@ -149,7 +150,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
 }
 
-object MultiPartitionTableLoaderSpec {
+object MultiPartitionLoaderSpec {
 
   case class AdImpression(
       user_id: String,
