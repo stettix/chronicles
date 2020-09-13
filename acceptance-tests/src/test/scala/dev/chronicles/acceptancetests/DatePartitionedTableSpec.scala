@@ -8,7 +8,6 @@ import java.time.Instant
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import dev.chronicles.spark.{SparkHiveSuite, SparkSupport}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -17,7 +16,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import DatePartitionedTableSpec._
 
@@ -157,7 +156,7 @@ class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuit
     val basePath = tableLocation.toString.drop("file://".length)
     val dir = Paths.get(s"$basePath/$partition")
     val dirList = Option(dir.toFile.list()).map(_.toList).getOrElse(Nil)
-    dirList.filter(_.matches(Version.TimestampAndUuidRegex.regex))
+    dirList.filter(_.matches(VersionPaths.VersionColumn + "=" + Version.TimestampAndUuidRegex.regex))
   }
 
 }

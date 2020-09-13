@@ -5,13 +5,12 @@ import java.sql.Date
 import java.time.Instant
 
 import cats.effect.IO
+import dev.chronicles.core.Metastore.TableChanges
+import dev.chronicles.core.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
 import dev.chronicles.core.Partition.PartitionColumn
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core._
-import dev.chronicles.core.Metastore.TableChanges
-import dev.chronicles.core.Metastore.TableOperation.{AddPartition, UpdateTableVersion}
 import dev.chronicles.spark.VersionContextSpec.{Event, User}
-import dev.chronicles.hadoop.filesystem.VersionedFileSystem
 import org.apache.spark.sql.Dataset
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -19,7 +18,7 @@ import scala.reflect.runtime.universe.TypeTag
 
 class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import spark.implicits._
 
@@ -27,78 +26,6 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
   lazy val version1 = Version.generateVersion[IO].unsafeRunSync()
   lazy val version2 = Version.generateVersion[IO].unsafeRunSync()
   val generateVersion: IO[Version] = IO.pure(version1)
-
-  it should "return all partitions for a dataset with a single partition column" in {
-
-    val partitionedDataset: Dataset[Event] = List(
-      Event("101", "A", Date.valueOf("2019-01-15")),
-      Event("102", "B", Date.valueOf("2019-01-15")),
-      Event("103", "A", Date.valueOf("2019-01-16")),
-      Event("104", "B", Date.valueOf("2019-01-18"))
-    ).toDS()
-
-    val schema = PartitionSchema(List(PartitionColumn("date")))
-
-    val expectedPartitions = List(
-      Partition(PartitionColumn("date"), "2019-01-15"),
-      Partition(PartitionColumn("date"), "2019-01-16"),
-      Partition(PartitionColumn("date"), "2019-01-18")
-    )
-    SparkSupport.partitionValues(partitionedDataset, schema) should contain theSameElementsAs expectedPartitions
-  }
-
-  it should "return no partitions for an empty dataset with a partitioned schema" in {
-    val schema = PartitionSchema(List(PartitionColumn("date")))
-    SparkSupport.partitionValues(spark.emptyDataset[Event], schema) shouldBe empty
-  }
-
-  "Writing a dataset with multiple partitions" should "store the data for each partition in a versioned folder for the partition" in {
-
-    import spark.implicits._
-
-    val versionedPath = tableUri.resolve(s"table").toString.replace("file:", "versioned://")
-    val table = TableDefinition(TableName("dev", "test"),
-                                tableUri,
-                                PartitionSchema(List(PartitionColumn("date"))),
-                                FileFormat.Parquet)
-
-    val eventsGroup1 = List(
-      Event("101", "A", Date.valueOf("2019-01-15")),
-      Event("102", "B", Date.valueOf("2019-01-15")),
-      Event("103", "A", Date.valueOf("2019-01-16")),
-      Event("104", "B", Date.valueOf("2019-01-18"))
-    )
-
-    val partitionPathsV1: Map[Partition, Version] = Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> version1,
-      Partition(PartitionColumn("date"), "2019-01-16") -> version1,
-      Partition(PartitionColumn("date"), "2019-01-18") -> version1
-    )
-
-    SparkSupport.writeVersionedPartitions(eventsGroup1.toDS(), table, partitionPathsV1)
-
-    readDataset[Event](new URI(versionedPath))
-      .collect() should contain theSameElementsAs eventsGroup1
-
-    // Now write some new data to the same partitions
-    val eventsGroup2 = List(
-      Event("201", "C", Date.valueOf("2019-01-15")),
-      Event("202", "D", Date.valueOf("2019-01-15")),
-      Event("203", "C", Date.valueOf("2019-01-16")),
-      Event("204", "D", Date.valueOf("2019-01-18"))
-    )
-
-    val partitionPathsV2: Map[Partition, Version] = Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> version2,
-      Partition(PartitionColumn("date"), "2019-01-16") -> version2,
-      Partition(PartitionColumn("date"), "2019-01-18") -> version2
-    )
-
-    SparkSupport.writeVersionedPartitions(eventsGroup2.toDS(), table, partitionPathsV2)
-
-    readDataset[Event](new URI(versionedPath))
-      .collect() should contain theSameElementsAs eventsGroup2
-  }
 
   "Inserting a snapshot dataset" should "write the data to the versioned location and commit the new version" in {
     val usersTable = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Orc)
@@ -137,7 +64,8 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
       users.toDS().versionedInsertInto(usersTable, userId, "Test insert users into table")
 
     // Check that data was written correctly to the right place
-    readDataset[User](resolveTablePath(version1.label)).collect() should contain theSameElementsAs users
+    readDataset[User](FileFormat.Orc, resolveTablePath(VersionPaths.VersionColumn + "=" + version1.label))
+      .collect() should contain theSameElementsAs users
 
     // Check that we performed the right version updates and returned the right results
     tableVersion shouldBe SnapshotTableVersion(version1)
@@ -148,64 +76,6 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     val tableUpdate = tableUpdates.head
     tableUpdate.message shouldBe UpdateMessage("Test insert users into table")
     timestampBeforeWriting.isAfter(tableUpdate.timestamp) shouldBe false
-    tableUpdate.userId shouldBe userId
-  }
-
-  "Inserting multiple records into the same partition" should "write the correct data to the filesystem" in {
-    val eventsTable =
-      TableDefinition(TableName(schema, "events"),
-                      tableUri,
-                      PartitionSchema(List(PartitionColumn("date"))),
-                      FileFormat.Parquet)
-
-    val initialTableVersion = PartitionedTableVersion(partitionVersions = Map.empty)
-    val stubbedChanges = TableChanges(initialTableVersion.partitionVersions.map(AddPartition.tupled).toList)
-
-    val versionContext = {
-      val stubMetastore: Metastore[IO] = new StubMetastore(
-        currentVersion = initialTableVersion,
-        computedChanges = stubbedChanges
-      )
-
-      val versionTracker: VersionTracker[IO] = (for {
-        t <- InMemoryVersionTracker[IO]
-        _ <- t.initTable(eventsTable.name, isSnapshot = false, UserId("test"), UpdateMessage("init"), Instant.now())
-      } yield t).unsafeRunSync()
-
-      VersionContext(new VersionedMetastore(versionTracker, stubMetastore), generateVersion)
-    }
-
-    import versionContext._
-    val ss = SparkSupport(versionContext)
-    import ss.syntax._
-
-    val events = List(
-      Event("101", "A", Date.valueOf("2019-01-15")),
-      Event("102", "B", Date.valueOf("2019-01-15")),
-      Event("103", "C", Date.valueOf("2019-01-15"))
-    )
-
-    // Do the insert
-    val userId = UserId("user-id")
-    val (tableVersion, metastoreChanges) =
-      events.toDS().versionedInsertInto(eventsTable, userId, "Test insert events into table")
-
-    // Check that data was written correctly to the right place
-    readDataset[Event](tableUri)
-      .collect() should contain theSameElementsAs events
-
-    // Check that we performed the right version updates and returned the right results
-    val expectedPartitionVersions = Map(
-      Partition(PartitionColumn("date"), "2019-01-15") -> version1
-    )
-
-    tableVersion shouldBe PartitionedTableVersion(expectedPartitionVersions)
-    metastoreChanges shouldBe stubbedChanges
-
-    val tableUpdates = metastore.updates(eventsTable.name).compile.toList.unsafeRunSync()
-    tableUpdates should have size 2
-    val tableUpdate = tableUpdates.head
-    tableUpdate.message shouldBe UpdateMessage("Test insert events into table")
     tableUpdate.userId shouldBe userId
   }
 
@@ -257,7 +127,7 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
       events.toDS().versionedInsertInto(eventsTable, userId, "Test insert events into table")
 
     // Check that data was written correctly to the right place
-    readDataset[Event](tableUri)
+    readDataset[Event](FileFormat.Parquet, tableUri)
       .collect() should contain theSameElementsAs (eventsDay1 ++ eventsDay2 ++ eventsDay3)
 
     // Check that we performed the right version updates and returned the right results
@@ -277,19 +147,10 @@ class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
     tableUpdate.userId shouldBe userId
   }
 
-  "withVersionedScheme" should "preserve all URI parts" in {
-
-    val uri = new URI("s3", "bucketName", "/some/path/date=2019-01-01", "someQueryString", "someFragment")
-
-    val expectedUri =
-      new URI(VersionedFileSystem.scheme, "bucketName", "/some/path/date=2019-01-01", "someQueryString", "someFragment")
-
-    SparkSupport.setVersionedScheme(uri) shouldBe expectedUri
-  }
-
-  private def readDataset[T <: Product: TypeTag](path: URI): Dataset[T] =
+  private def readDataset[T <: Product: TypeTag](fileFormat: FileFormat, path: URI): Dataset[T] =
     spark.read
-      .parquet(path.toString)
+      .format(fileFormat.name)
+      .load(path.toString)
       .as[T]
 
   class StubMetastore(currentVersion: TableVersion, computedChanges: TableChanges) extends Metastore[IO] {
