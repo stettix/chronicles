@@ -9,6 +9,7 @@ import cats.syntax.either._
   */
 object VersionPaths {
 
+  /** Name of partition used to store version string */
   val VersionColumn = "_version"
 
   /**
