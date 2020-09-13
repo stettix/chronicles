@@ -14,11 +14,11 @@ import org.scalatest.{FlatSpec, Matchers}
 /**
   * This tests the behaviour of a table partitioned by multiple columns.
   */
-class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
-  import MultiPartitionTableLoaderSpec._
+  import MultiPartitionTableSpec._
 
   "Writing multiple versions of a dataset with multiple partition columns" should "produce distinct partition versions" in {
 
@@ -149,7 +149,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
 }
 
-object MultiPartitionTableLoaderSpec {
+object MultiPartitionTableSpec {
 
   case class AdImpression(
       user_id: String,

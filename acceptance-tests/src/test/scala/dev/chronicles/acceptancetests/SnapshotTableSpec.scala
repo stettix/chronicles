@@ -14,11 +14,11 @@ import org.scalatest.{FlatSpec, Matchers}
   * This tests the behaviour of an unpartitioned table, i.e. a table where we replace all the content
   * every time we write to it (no partial updates).
   */
-class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
-  import SnapshotTableLoaderSpec._
+  import SnapshotTableSpec._
 
   val table = TableDefinition(TableName(schema, "users"), tableUri, PartitionSchema.snapshot, FileFormat.Parquet)
 
@@ -113,7 +113,7 @@ class SnapshotTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite
 
 }
 
-object SnapshotTableLoaderSpec {
+object SnapshotTableSpec {
 
   case class User(id: String, name: String, email: String)
 

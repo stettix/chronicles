@@ -15,11 +15,11 @@ import org.scalatest.{FlatSpec, Matchers}
 /**
   * This tests the behaviour of a table partitioned by a single column, where partitions are versioned individually.
   */
-class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
-  import DatePartitionedTableLoaderSpec._
+  import DatePartitionedTableSpec._
 
   val table = TableDefinition(
     TableName(schema, "pageview"),
@@ -162,7 +162,7 @@ class DatePartitionedTableLoaderSpec extends FlatSpec with Matchers with SparkHi
 
 }
 
-object DatePartitionedTableLoaderSpec {
+object DatePartitionedTableSpec {
   case class Pageview(id: String, path: String, timestamp: Timestamp, date: Date)
 
   object Pageview {
