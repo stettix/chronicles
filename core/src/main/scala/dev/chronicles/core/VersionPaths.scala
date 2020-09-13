@@ -28,9 +28,12 @@ object VersionPaths {
     */
   def parseVersion(location: URI): Version = {
     val maybeVersionStr: Option[String] = location.toString.split("/").lastOption
+    val versionPrefix = s"$VersionColumn="
     val parsedVersion = for {
       path <- maybeVersionStr.toRight(new Exception(s"Empty path: $location"))
-      version <- Version.parse(path.drop(s"$VersionColumn=".length)) // ## TODO: clean up!!
+      version <- if (path.startsWith(versionPrefix))
+        Version.parse(path.drop(versionPrefix.length))
+      else Left(new Exception(s"Version partition in location $location should have a prefix '$versionPrefix'"))
     } yield version
 
     parsedVersion.getOrElse(Version.Unversioned)
