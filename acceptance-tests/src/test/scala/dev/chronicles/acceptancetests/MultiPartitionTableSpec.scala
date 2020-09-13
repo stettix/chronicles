@@ -14,18 +14,17 @@ import org.scalatest.{FlatSpec, Matchers}
 /**
   * This tests the behaviour of a table partitioned by multiple columns.
   */
-class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiveSuite {
+class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
   override def customConfig = VersionedFileSystem.sparkConfig("file", tableDir.toUri)
 
-  import MultiPartitionTableLoaderSpec._
+  import MultiPartitionTableSpec._
 
   "Writing multiple versions of a dataset with multiple partition columns" should "produce distinct partition versions" in {
 
     import spark.implicits._
 
     val versionContext = TestVersionContext.default.unsafeRunSync()
-    import versionContext.metastore
     val sparkSupport = SparkSupport(versionContext)
     import sparkSupport.syntax._
 
@@ -111,15 +110,15 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
       "impression_date=2019-03-14" -> "processed_date=2019-03-15")
 
     // Get version history
-    val versionHistory = metastore.updates(table.name).compile.toList.unsafeRunSync()
+    val versionHistory = versionContext.metastore.updates(table.name).compile.toList.unsafeRunSync()
     versionHistory.size shouldBe 4 // One initial version plus three written versions
 
     // Roll back to previous version
-    metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionHistory.drop(1).head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2
 
     // Roll forward to latest
-    metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
+    versionContext.metastore.checkout(table.name, versionHistory.head.id).unsafeRunSync()
     tableData.collect() should contain theSameElementsAs impressionsDay1 ++ impressionsDay2Updated
   }
 
@@ -150,7 +149,7 @@ class MultiPartitionTableLoaderSpec extends FlatSpec with Matchers with SparkHiv
 
 }
 
-object MultiPartitionTableLoaderSpec {
+object MultiPartitionTableSpec {
 
   case class AdImpression(
       user_id: String,
