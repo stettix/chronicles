@@ -16,8 +16,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig =
-    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import DatePartitionedTableSpec._
 
@@ -51,8 +50,6 @@ class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuit
     // Create underlying table
     spark.sql(ddl)
 
-    def tableData = spark.table(table.name.fullyQualifiedName).as[Pageview]
-
     // Initialise version tracking for table
     versionContext.metastore
       .initTable(table.name, isSnapshot = false, userId, UpdateMessage("init"), Instant.now())
@@ -67,6 +64,8 @@ class DatePartitionedTableSpec extends FlatSpec with Matchers with SparkHiveSuit
     )
 
     pageviewsDay1.toDS().versionedInsertInto(table, userId, "Day 1 initial commit")
+
+    def tableData = spark.table(table.name.fullyQualifiedName).as[Pageview]
 
     tableData.collect() should contain theSameElementsAs pageviewsDay1
 

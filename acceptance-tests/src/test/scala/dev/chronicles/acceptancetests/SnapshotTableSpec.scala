@@ -15,8 +15,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class SnapshotTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig =
-    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import SnapshotTableSpec._
 

@@ -18,8 +18,7 @@ import scala.reflect.runtime.universe.TypeTag
 
 class VersionContextSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig =
-    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import spark.implicits._
 

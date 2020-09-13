@@ -15,8 +15,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite {
 
-  override def customConfig =
-    Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
+  override def customConfig = Map("spark.sql.sources.partitionOverwriteMode" -> "dynamic")
 
   import MultiPartitionTableSpec._
 
@@ -34,8 +33,6 @@ class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite
       PartitionSchema(List(PartitionColumn("impression_date"), PartitionColumn("processed_date"))),
       FileFormat.Orc
     )
-
-    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
 
     val ddl = s"""CREATE EXTERNAL TABLE IF NOT EXISTS ${table.name.fullyQualifiedName} (
                  |  `user_id` string,
@@ -65,6 +62,7 @@ class MultiPartitionTableSpec extends FlatSpec with Matchers with SparkHiveSuite
 
     impressionsDay1.toDS().versionedInsertInto(table, userId1, "Day 1 initial commit")
 
+    def tableData = spark.table(table.name.fullyQualifiedName).as[AdImpression]
     tableData.collect() should contain theSameElementsAs impressionsDay1
 
     val initialPartitionVersions = partitionVersions(tableDir)
