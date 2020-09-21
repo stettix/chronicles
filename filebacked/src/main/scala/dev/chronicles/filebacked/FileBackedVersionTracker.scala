@@ -3,14 +3,16 @@ package dev.chronicles.filebacked
 import java.time.Instant
 
 import cats.effect.Sync
-import dev.chronicles.core.{TableName, VersionTracker}
-import dev.chronicles.core.VersionTracker.{CommitId, TableState}
-import fs2.Stream
-import org.apache.hadoop.fs.{FileSystem, Path}
 import cats.implicits._
+import dev.chronicles.core.VersionTracker.{CommitId, TableState}
+import dev.chronicles.core.{TableName, VersionTracker}
 import dev.chronicles.filebacked.FileBackedVersionTracker._
-
-case class TableMetadataFile(isSnapshot: Boolean)
+import dev.chronicles.filebacked.JsonSchemas._
+import fs2.Stream
+import io.circe.Printer.spaces2
+import io.circe.parser._
+import io.circe.syntax._
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 /**
   * This class implementation a VersionTracker that stores its state in an underlying filesystem.
@@ -19,7 +21,7 @@ case class TableMetadataFile(isSnapshot: Boolean)
   */
 class FileBackedVersionTracker[F[_]](fs: FileSystem, rootFolder: Path)(implicit F: Sync[F]) extends VersionTracker[F] {
 
-  val fsSyntax = FileSystemSyntax()
+  private val fsSyntax = FileSystemSyntax()
   import fsSyntax._
 
   override def tables(): Stream[F, TableName] = {
@@ -43,8 +45,7 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootFolder: Path)(implicit 
 
     val tableFolderPath = pathForTable(table)
     val metadataPath = new Path(tableFolderPath, MetadataFilename)
-
-    val tableMetadataStr = s"""{"is_snapshot": $isSnapshot }""" // TODO! Use a typed value and encode using Circe. Maybe include extra metadata fields too.
+    val tableMetadataStr = TableMetadataFile(isSnapshot).asJson.printWith(spaces2)
 
     for {
       existsAlready <- fs.directoryExists(tableFolderPath) // TODO: Maybe better to try to read the existing file first?
@@ -68,9 +69,12 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootFolder: Path)(implicit 
   override def isSnapshotTable(table: TableName): F[Boolean] = {
     val tableFolderPath = pathForTable(table)
     val metadataPath = new Path(tableFolderPath, MetadataFilename)
+
     for {
-      tableMetadata <- fs.readString(metadataPath)
-    } yield tableMetadata.contains("true") // TODO: Parse to object!!!
+      tableMetadataStr <- fs.readString(metadataPath)
+      tableMetadataJson <- F.fromEither(parse(tableMetadataStr))
+      tableMetadata <- F.fromEither(tableMetadataJson.as[TableMetadataFile])
+    } yield tableMetadata.isSnapshot
   }
 
   override protected def tableState[O <: TableState.Ordering](
