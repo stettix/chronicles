@@ -34,4 +34,11 @@ object Dependencies {
 
   val pureConfigVersion = "0.13.0"
 
+  val hadoopVersion = "2.6.5"
+
+  lazy val hadoopDependencies: Seq[ModuleID] =
+    Seq(
+      "org.apache.hadoop" % "hadoop-common" %	hadoopVersion
+    )
+
 }

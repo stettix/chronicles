@@ -21,6 +21,8 @@ trait VersionTracker[F[_]] {
   /**
     * Start tracking version information for given table.
     * This must be called before any other operations can be performed on this table.
+    *
+    * If the given table already exists, this operation has no effect.
     */
   def initTable(
       table: TableName,
