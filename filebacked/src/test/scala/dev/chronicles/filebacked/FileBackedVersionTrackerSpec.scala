@@ -12,7 +12,7 @@ import org.scalatest.prop.TableDrivenPropertyChecks.{Table => TestTable, _}
 
 class FileBackedVersionTrackerSpec extends FlatSpec with VersionTrackerSpec with Matchers {
 
-  import FileBackedVersionTracker.TableFolderPrefix
+  import FileBackedVersionTracker.TableDirectoryPrefix
 
   val createVersionTracker: IO[FileBackedVersionTracker[IO]] = for {
     root <- IO(Files.createTempDirectory(getClass.getSimpleName))
@@ -31,9 +31,9 @@ class FileBackedVersionTrackerSpec extends FlatSpec with VersionTrackerSpec with
   "Parsing table folder names" should "return the table names for matching folders only" in {
     val folderNames = TestTable(
       ("folder name", "expected table name"),
-      (s"${TableFolderPrefix}my_database.my_table", Some(TableName("my_database", "my_table"))),
-      (s"${TableFolderPrefix}my_database.my_table", Some(TableName("my_database", "my_table"))),
-      (s"${TableFolderPrefix}MY_DATABASE.MY_TABLE", Some(TableName("MY_DATABASE", "MY_TABLE"))),
+      (s"${TableDirectoryPrefix}my_database.my_table", Some(TableName("my_database", "my_table"))),
+      (s"${TableDirectoryPrefix}my_database.my_table", Some(TableName("my_database", "my_table"))),
+      (s"${TableDirectoryPrefix}MY_DATABASE.MY_TABLE", Some(TableName("MY_DATABASE", "MY_TABLE"))),
       (s"s3:///foo/bar/some_random_path", None)
     )
 

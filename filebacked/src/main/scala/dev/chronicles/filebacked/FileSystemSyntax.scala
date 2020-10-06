@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets
 
 import cats.effect.Sync
 import cats.implicits._
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 
 import scala.io.{Codec, Source}
 
@@ -27,7 +27,7 @@ case class FileSystemSyntax[F[_]]()(implicit F: Sync[F]) {
     }
 
     def write(path: Path, content: String): F[Unit] = F.delay {
-      val outputStream = fs.create(path)
+      val outputStream = fs.create(path, false)
       try {
         outputStream.write(content.getBytes(StandardCharsets.UTF_8))
         outputStream.flush()
@@ -40,6 +40,12 @@ case class FileSystemSyntax[F[_]]()(implicit F: Sync[F]) {
       fs.listStatus(path)
         .filter(_.isDirectory)
         .map(_.getPath)
+        .toList
+    }
+
+    def listFiles(path: Path): F[List[FileStatus]] = F.delay {
+      fs.listStatus(path)
+        .filter(!_.isDirectory)
         .toList
     }
 
