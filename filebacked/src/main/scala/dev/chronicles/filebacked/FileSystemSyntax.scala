@@ -26,8 +26,8 @@ case class FileSystemSyntax[F[_]]()(implicit F: Sync[F]) {
       // TODO: Do I need to close the Source here?
     }
 
-    def write(path: Path, content: String): F[Unit] = F.delay {
-      val outputStream = fs.create(path, false)
+    def write(path: Path, content: String, overwrite: Boolean = false): F[Unit] = F.delay {
+      val outputStream = fs.create(path, overwrite)
       try {
         outputStream.write(content.getBytes(StandardCharsets.UTF_8))
         outputStream.flush()

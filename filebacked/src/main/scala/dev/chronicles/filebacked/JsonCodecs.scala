@@ -5,11 +5,15 @@ import java.time.Instant
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.{Partition, TableName, Version}
-import dev.chronicles.filebacked.FileBackedVersionTracker.TableMetadataFile
+import dev.chronicles.filebacked.FileBackedVersionTracker.{StateFile, TableMetadataFile}
 import io.circe.syntax.EncoderOps
 import io.circe.{Decoder, Encoder, HCursor, Json}
 
 object JsonCodecs {
+
+  //
+  // TableMetadataFile codecs
+  //
 
   implicit val tableMetadataFileEncoder: Encoder[TableMetadataFile] =
     (t: TableMetadataFile) => Json.obj("is_snapshot" -> t.isSnapshot.asJson)
@@ -19,6 +23,10 @@ object JsonCodecs {
       for {
         isSnapshot <- c.downField("is_snapshot").as[Boolean]
       } yield TableMetadataFile(isSnapshot)
+
+  //
+  // TableUpdate codecs
+  //
 
   implicit val commitIdEncoder: Encoder[CommitId] = Encoder.encodeString.contramap[CommitId](_.id)
   implicit val userIdEncoder: Encoder[UserId] = Encoder.encodeString.contramap[UserId](_.value)
@@ -110,5 +118,18 @@ object JsonCodecs {
 
   def renderJson(tableUpdate: TableUpdate): String =
     tableUpdate.asJson.spaces2
+
+  //
+  // StateFile codecs
+  //
+
+  implicit val stateFileEncoder: Encoder[StateFile] =
+    (s: StateFile) => Json.obj("head_ref" -> s.headRef.asJson)
+
+  implicit val stateFileDecoder: Decoder[StateFile] =
+    (c: HCursor) =>
+      for {
+        headRef <- c.downField("head_ref").as[String]
+      } yield StateFile(headRef)
 
 }
