@@ -22,7 +22,7 @@ class TimestampsSpec extends FlatSpec with Matchers {
 
   }
 
-  val testStream2 = Timestamps.uniqueInstants[IO].take(1000)
+  val testStream2 = Timestamps.uniqueTimestamps[IO].take(1000)
 
   "A stream of timestamps" should "have all distinct values" in {
     val values = testStream2.compile.toVector.unsafeRunSync()
