@@ -95,8 +95,8 @@ lazy val `chronicles-aws-glue` = project
   .settings(parallelExecution in Test := false)
   .dependsOn(`chronicles-core` % "compile->compile;test->test;it->test")
 
-lazy val `chronicles-filebacked` = project
-  .in(file("filebacked"))
+lazy val `chronicles-files` = project
+  .in(file("files"))
   .settings(commonSettings)
   .settings(libraryDependencies ++= Seq(
     "io.circe" %% "circe-core" % circeVersion,

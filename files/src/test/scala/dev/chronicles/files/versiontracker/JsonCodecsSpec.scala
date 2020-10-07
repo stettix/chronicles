@@ -1,4 +1,4 @@
-package dev.chronicles.filebacked
+package dev.chronicles.files.versiontracker
 
 import java.time.Instant
 import java.util.UUID
@@ -7,8 +7,8 @@ import dev.chronicles.core.Partition.{ColumnValue, PartitionColumn}
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.{Partition, TableName, Version}
-import dev.chronicles.filebacked.FileBackedVersionTracker.{StateFile, TableMetadataFile}
-import dev.chronicles.filebacked.JsonCodecs._
+import FileBackedVersionTracker.{StateFile, TableMetadataFile}
+import JsonCodecs._
 import io.circe.parser._
 import org.scalatest.{FlatSpec, Matchers}
 

@@ -1,4 +1,4 @@
-package dev.chronicles.filebacked
+package dev.chronicles.files.versiontracker
 
 import org.scalatest.{FlatSpec, Matchers}
 import cats.effect._

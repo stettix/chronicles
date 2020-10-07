@@ -1,4 +1,4 @@
-package dev.chronicles.filebacked
+package dev.chronicles.files.versiontracker
 
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneId}
@@ -9,8 +9,8 @@ import dev.chronicles.core.VersionTracker.TableOperation.InitTable
 import dev.chronicles.core.VersionTracker.TableState.TimeAscending
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.{TableName, VersionTracker}
-import dev.chronicles.filebacked.FileBackedVersionTracker._
-import dev.chronicles.filebacked.JsonCodecs._
+import FileBackedVersionTracker._
+import JsonCodecs._
 import fs2.Stream
 import io.circe.Printer.spaces2
 import io.circe.parser._
@@ -173,20 +173,20 @@ object FileBackedVersionTracker {
   final case class TableMetadataFile(isSnapshot: Boolean)
   final case class StateFile(headRef: String)
 
-  private[filebacked] val MetadataFilename = "table-metadata"
-  private[filebacked] val StateFilename = "head_ref"
-  private[filebacked] val TableDirectoryPrefix = "_chronicles_table_"
-  private[filebacked] val TableDirectoryPattern = s"$TableDirectoryPrefix(\\w+)\\.(\\w+)".r
-  private[filebacked] val TableUpdateFilePrefix = "table_update_"
+  private[versiontracker] val MetadataFilename = "table-metadata"
+  private[versiontracker] val StateFilename = "head_ref"
+  private[versiontracker] val TableDirectoryPrefix = "_chronicles_table_"
+  private[versiontracker] val TableDirectoryPattern = s"$TableDirectoryPrefix(\\w+)\\.(\\w+)".r
+  private[versiontracker] val TableUpdateFilePrefix = "table_update_"
 
-  private[filebacked] def parseTableName(directoryName: String): Option[TableName] = directoryName match {
+  private[versiontracker] def parseTableName(directoryName: String): Option[TableName] = directoryName match {
     case TableDirectoryPattern(schemaName, tableName) => Some(TableName(schemaName, tableName))
     case _                                            => None
   }
 
   private val filenameDateFormat =
     DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss.SSS").withZone(ZoneId.of("UTC"))
-  private[filebacked] def tableUpdateFilename(timestamp: Instant): String =
+  private[versiontracker] def tableUpdateFilename(timestamp: Instant): String =
     TableUpdateFilePrefix + filenameDateFormat.format(timestamp)
 
 }
