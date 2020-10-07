@@ -1,12 +1,15 @@
 package dev.chronicles.filebacked
 
-import java.time.Instant
+import java.time.chrono.IsoChronology
+import java.time.{Instant, ZoneId}
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, ResolverStyle}
+import java.time.temporal.ChronoField._
 
 import cats.effect.Sync
 import cats.implicits._
 import dev.chronicles.core.VersionTracker.TableOperation.InitTable
 import dev.chronicles.core.VersionTracker.TableState.TimeAscending
-import dev.chronicles.core.VersionTracker.{CommitId, TableState, TableUpdate, unknownCommitId, unknownTableError}
+import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.{TableName, VersionTracker}
 import dev.chronicles.filebacked.FileBackedVersionTracker._
 import dev.chronicles.filebacked.JsonCodecs._
@@ -50,6 +53,11 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implic
     val tableMetadataStr = TableMetadataFile(isSnapshot).asJson.printWith(spaces2)
     val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
 
+    fs.createDirectory(tableDirectoryPath) >>
+      fs.write(metadataPath, tableMetadataStr) >>
+      commit(table, initialUpdate) >>
+      setCurrentVersion(table, initialUpdate.metadata.id)
+
     for {
       existsAlready <- fs.directoryExists(tableDirectoryPath)
       _ <- if (existsAlready) F.unit
@@ -61,10 +69,6 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implic
 
   override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
     val tableDirectoryPath = pathForTable(table)
-
-    // TODO: Create more readable and well defined format, with tests
-    def tableUpdateFilename(timestamp: Instant): String =
-      TableUpdateFilePrefix + timestamp.toEpochMilli // TODO: format timestamp better
 
     val writeTableUpdate: F[Unit] = for {
       _ <- checkExists(table)
@@ -136,6 +140,7 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implic
       table: TableName,
       id: VersionTracker.CommitId,
       checkIfCommitExists: Boolean): F[Unit] = {
+
     val tableDirectoryPath = pathForTable(table)
     val stateFilePath = new Path(tableDirectoryPath, StateFilename)
     val stateFileContent = StateFile(id.id)
@@ -148,11 +153,8 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implic
       _ <- if (commits.nonEmpty) F.unit else F.raiseError(unknownCommitId(id))
     } yield ()
 
-    //  To avoid having to do this in the internal call to setCurrentVersion, pull out the non-check part into a separate private method.
-    for {
-      _ <- if (checkIfCommitExists) checkCommitExists else F.unit
-      _ <- fs.write(stateFilePath, stateFileContentJson, overwrite = true)
-    } yield ()
+    (if (checkIfCommitExists) checkCommitExists else F.unit) >>
+      fs.write(stateFilePath, stateFileContentJson, overwrite = true)
   }
 
   private def pathForTable(table: TableName): Path =
@@ -170,7 +172,9 @@ class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implic
 
 object FileBackedVersionTracker {
 
-  // TODO: Make (some of) these public?
+  final case class TableMetadataFile(isSnapshot: Boolean)
+  final case class StateFile(headRef: String)
+
   private[filebacked] val MetadataFilename = "table-metadata"
   private[filebacked] val StateFilename = "head_ref"
   private[filebacked] val TableDirectoryPrefix = "_chronicles_table_"
@@ -182,8 +186,9 @@ object FileBackedVersionTracker {
     case _                                            => None
   }
 
-  final case class TableMetadataFile(isSnapshot: Boolean)
-
-  final case class StateFile(headRef: String)
+  private val filenameDateFormat =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH-mm-ss.SSS").withZone(ZoneId.of("UTC"))
+  private[filebacked] def tableUpdateFilename(timestamp: Instant): String =
+    TableUpdateFilePrefix + filenameDateFormat.format(timestamp)
 
 }
