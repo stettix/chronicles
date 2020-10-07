@@ -40,6 +40,7 @@ class FileSystemSyntaxSpec extends FlatSpec with Matchers {
           _ <- fs.createDirectory(dir2)
           _ <- fs.write(new Path(rootPath, "fileInRoot"), "This file is in the root directory")
           _ <- fs.write(new Path(dir1, "fileInDir1"), "This file is in dir1")
+          _ <- fs.write(new Path(dir1, "anotherFileInDir1"), "This file is in dir1 too")
 
           subDirsAfterCreating <- fs.listDirectories(rootPath)
           _ <- IO(assert(subDirsAfterCreating.toSet == Set(dir1, dir2)))
@@ -49,6 +50,9 @@ class FileSystemSyntaxSpec extends FlatSpec with Matchers {
 
           otherDirExists <- fs.directoryExists(new Path(rootPath, "foobar"))
           _ <- IO(assert(!otherDirExists))
+
+          filesInDir1 <- fs.listFiles(dir1)
+          _ <- IO(assert(filesInDir1.map(_.getPath.getName).toSet == Set("fileInDir1", "anotherFileInDir1")))
 
           fileInRootReadBack <- fs.readString(new Path(rootPath, "fileInRoot"))
           _ <- IO(assert(fileInRootReadBack == "This file is in the root directory"))
