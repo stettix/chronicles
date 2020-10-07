@@ -116,8 +116,9 @@ object JsonCodecs {
         operations <- c.downField("operations").as[List[TableOperation]]
       } yield TableUpdate(TableUpdateMetadata(commitId, userId, message, timestamp), operations)
 
-  def renderJson(tableUpdate: TableUpdate): String =
-    tableUpdate.asJson.spaces2
+  /** Defines the format to use for rendering all JSON documents. */
+  def renderJson[T](x: T)(implicit T: Encoder[T]): String =
+    x.asJson.spaces2
 
   //
   // StateFile codecs

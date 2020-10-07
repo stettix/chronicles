@@ -4,12 +4,12 @@ import java.time.Instant
 import java.util.UUID
 
 import dev.chronicles.core.Partition.{ColumnValue, PartitionColumn}
-import dev.chronicles.core.{Partition, TableName, Version}
 import dev.chronicles.core.VersionTracker.TableOperation._
 import dev.chronicles.core.VersionTracker._
+import dev.chronicles.core.{Partition, TableName, Version}
+import dev.chronicles.filebacked.FileBackedVersionTracker.{StateFile, TableMetadataFile}
 import dev.chronicles.filebacked.JsonCodecs._
 import io.circe.parser._
-import io.circe.syntax.EncoderOps
 import org.scalatest.{FlatSpec, Matchers}
 
 class JsonCodecsSpec extends FlatSpec with Matchers {
@@ -18,7 +18,7 @@ class JsonCodecsSpec extends FlatSpec with Matchers {
   val tableVersion = Version(Instant.now(), UUID.randomUUID())
   val partitionVersion = Version(Instant.now(), UUID.randomUUID())
 
-  val sample = TableUpdate(
+  val sampleTableUpdate = TableUpdate(
     TableUpdateMetadata(CommitId("update-id"), UserId("user ID"), UpdateMessage("update message"), timestamp = time),
     List(
       InitTable(TableName("schema", "table"), isSnapshot = true),
@@ -30,17 +30,12 @@ class JsonCodecsSpec extends FlatSpec with Matchers {
     )
   )
 
-  // TODO:
-  //   - Add generic roundtrip tests
-  //   - Test the table metadata file JSON too
-  //   - Rename JsonSchemas to JsonCodecs
-
   "Round trip coding and decoding of a table update" should "produce the same value" in {
-    val decoded = decode[TableUpdate](JsonCodecs.renderJson(sample))
-    decoded shouldBe Right(sample)
+    val decoded = decode[TableUpdate](JsonCodecs.renderJson(sampleTableUpdate))
+    decoded shouldBe Right(sampleTableUpdate)
   }
 
-  "The rendered JSON" should "use snake case fields and include custom type discriminator field" in {
+  "The rendered JSON for a table update" should "have the required format" in {
 
     val expectedJson =
       s"""{
@@ -70,7 +65,39 @@ class JsonCodecsSpec extends FlatSpec with Matchers {
         |  ]
         |}""".stripMargin
 
-    JsonCodecs.renderJson(sample) shouldBe expectedJson
+    JsonCodecs.renderJson(sampleTableUpdate) shouldBe expectedJson
+  }
+
+  val sampleTableMetadataFile = TableMetadataFile(isSnapshot = true)
+
+  "The rendered JSON for a table metadata file" should "have the required format" in {
+    val expectedJson =
+      s"""{
+         |  "is_snapshot" : true
+         |}""".stripMargin
+
+    JsonCodecs.renderJson(sampleTableMetadataFile) shouldBe expectedJson
+  }
+
+  it should "be read back to the original value" in {
+    val decoded = decode[TableMetadataFile](JsonCodecs.renderJson(sampleTableMetadataFile))
+    decoded shouldBe Right(sampleTableMetadataFile)
+  }
+
+  val sampleStateFile = StateFile(headRef = "xyz")
+
+  "The rendered JSON for a state file" should "have the required format" in {
+    val expectedJson =
+      s"""{
+         |  "head_ref" : "xyz"
+         |}""".stripMargin
+
+    JsonCodecs.renderJson(sampleStateFile) shouldBe expectedJson
+  }
+
+  it should "be read back to the original value" in {
+    val decoded = decode[StateFile](JsonCodecs.renderJson(sampleStateFile))
+    decoded shouldBe Right(sampleStateFile)
   }
 
 }
