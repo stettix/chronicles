@@ -9,8 +9,8 @@ import dev.chronicles.core.VersionTracker.TableOperation.InitTable
 import dev.chronicles.core.VersionTracker.TableState.TimeAscending
 import dev.chronicles.core.VersionTracker._
 import dev.chronicles.core.{TableName, VersionTracker}
-import FileBackedVersionTracker._
-import JsonCodecs._
+import dev.chronicles.files.versiontracker.FileBackedVersionTracker._
+import dev.chronicles.files.versiontracker.JsonCodecs._
 import fs2.Stream
 import io.circe.Printer.spaces2
 import io.circe.parser._
@@ -22,10 +22,11 @@ import org.apache.hadoop.fs.{FileSystem, Path}
   *
   * @param rootDirectory Root directory for table metadata. This does not have to be in the same location as table data.
   */
-class FileBackedVersionTracker[F[_]](fs: FileSystem, rootDirectory: Path)(implicit F: Sync[F])
+class FileBackedVersionTracker[F[_]](fs: FileSystem, fsSyntax: FileSystemSyntax[F], rootDirectory: Path)(
+    implicit F: Sync[F])
     extends VersionTracker[F] {
 
-  private val fsSyntax = FileSystemSyntax()
+  // TODO: Only pass in FileSystem wrapper, not FileSystem + Syntax
   import fsSyntax._
 
   private val timestamps: Stream[F, Instant] = Timestamps.uniqueTimestamps

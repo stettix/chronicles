@@ -103,6 +103,7 @@ lazy val `chronicles-files` = project
     "io.circe" %% "circe-generic" % circeVersion,
     "io.circe" %% "circe-generic-extras" % "0.12.2",
     "io.circe" %% "circe-parser" % circeVersion,
+    "co.fs2" %% "fs2-io" % fs2Version,
     "commons-io" % "commons-io" % "2.6",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
     "log4j" % "log4j" % "1.2.17"

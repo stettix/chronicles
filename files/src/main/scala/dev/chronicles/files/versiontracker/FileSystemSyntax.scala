@@ -1,18 +1,17 @@
 package dev.chronicles.files.versiontracker
 
-import java.nio.charset.StandardCharsets
+import java.io.{InputStream, OutputStream}
 
-import cats.effect.Sync
+import cats.effect.{Blocker, ContextShift, Sync}
 import cats.implicits._
+import fs2._
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
-
-import scala.io.{Codec, Source}
 
 /**
   * This adds methods on a FileSystem object that use effect types hence allow files and directories
   * to be manpulated in a pure way.
   */
-case class FileSystemSyntax[F[_]]()(implicit F: Sync[F]) {
+case class FileSystemSyntax[F[_]](blocker: Blocker)(implicit F: Sync[F], cs: ContextShift[F]) {
 
   implicit class FileSystemMethods(fs: FileSystem) {
 
@@ -20,33 +19,37 @@ case class FileSystemSyntax[F[_]]()(implicit F: Sync[F]) {
 
     def createDirectory(path: Path): F[Unit] = F.delay(fs.mkdirs(path)).void
 
-    def readString(path: Path): F[String] = F.delay {
-      val source = Source.fromInputStream(fs.open(path))(Codec.UTF8)
-      source.getLines().mkString("\n")
-      // TODO: Do I need to close the Source here?
+    def readString(path: Path): F[String] = {
+      val inputStream: F[InputStream] = F.delay(fs.open(path))
+
+      io.readInputStream(inputStream, chunkSize = 4096, blocker = blocker, closeAfterUse = true)
+        .through(text.utf8Decode)
+        .through(text.lines)
+        .compile
+        .toVector
+        .map(_.mkString("\n"))
     }
 
-    def write(path: Path, content: String, overwrite: Boolean = false): F[Unit] = F.delay {
-      val outputStream = fs.create(path, overwrite)
-      try {
-        outputStream.write(content.getBytes(StandardCharsets.UTF_8))
-        outputStream.flush()
-      } finally {
-        outputStream.close()
-      }
+    def write(path: Path, content: String, overwrite: Boolean = false): F[Unit] = {
+      val outputStream: F[OutputStream] = F.delay(fs.create(path, overwrite))
+      val sink = io.writeOutputStream(outputStream, blocker, closeAfterUse = true)
+
+      Stream.emits(content.getBytes()).through(sink).compile.drain
     }
 
-    def listDirectories(path: Path): F[List[Path]] = F.delay {
-      fs.listStatus(path)
+    def listDirectories(path: Path): F[List[Path]] = listStatus(path).map { fileStatuses =>
+      fileStatuses
         .filter(_.isDirectory)
         .map(_.getPath)
-        .toList
     }
 
-    def listFiles(path: Path): F[List[FileStatus]] = F.delay {
-      fs.listStatus(path)
+    def listFiles(path: Path): F[List[FileStatus]] = listStatus(path).map { fileStatuses =>
+      fileStatuses
         .filter(!_.isDirectory)
-        .toList
+    }
+
+    def listStatus(path: Path): F[List[FileStatus]] = F.delay {
+      fs.listStatus(path).toList
     }
 
   }

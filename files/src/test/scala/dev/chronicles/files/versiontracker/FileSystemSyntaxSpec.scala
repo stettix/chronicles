@@ -1,26 +1,31 @@
 package dev.chronicles.files.versiontracker
 
 import java.net.URI
-import java.nio.file.Files
-import java.nio.file.{Path => JPath}
+import java.nio.file.{Files, Path => JPath}
 
-import cats.effect.IO
+import cats.effect.{Blocker, ContextShift, IO}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, LocalFileSystem, Path}
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.concurrent.ExecutionContext
+
 class FileSystemSyntaxSpec extends FlatSpec with Matchers {
 
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
+
   // Create a temporary directory and the Filesystem objects under test.
-  val init: IO[(JPath, FileSystem, FileSystemSyntax[IO])] = for {
-    root <- IO(Files.createTempDirectory(getClass.getSimpleName))
-    fs <- IO {
-      val fs = new LocalFileSystem()
-      fs.initialize(new URI("file:///"), new Configuration())
-      fs
-    }
-    fsSyntax <- IO((root, fs, FileSystemSyntax[IO]()))
-  } yield fsSyntax
+  val init: IO[(JPath, FileSystem, FileSystemSyntax[IO])] =
+    for {
+      root <- IO(Files.createTempDirectory(getClass.getSimpleName))
+      fs <- IO {
+        val fs = new LocalFileSystem()
+        fs.initialize(new URI("file:///"), new Configuration())
+        fs
+      }
+      fsSyntax <- IO((root, fs, FileSystemSyntax[IO](blocker)))
+    } yield fsSyntax
 
   "Performing filesystem operations" should "work as expected" in {
 

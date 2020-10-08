@@ -4,7 +4,7 @@ import java.net.URI
 import java.nio.file.Files
 import java.time.Instant
 
-import cats.effect.IO
+import cats.effect.{Blocker, ContextShift, IO}
 import dev.chronicles.core.{TableName, VersionTrackerSpec}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{LocalFileSystem, Path}
@@ -12,20 +12,26 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.prop.TableDrivenPropertyChecks.{Table => TestTable, _}
 
 import scala.util.Random
+import FileBackedVersionTracker._
+
+import scala.concurrent.ExecutionContext
 
 class FileBackedVersionTrackerSpec extends FlatSpec with VersionTrackerSpec with Matchers {
 
-  import FileBackedVersionTracker.TableDirectoryPrefix
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
 
-  val createVersionTracker: IO[FileBackedVersionTracker[IO]] = for {
-    root <- IO(Files.createTempDirectory(getClass.getSimpleName))
-    fs <- IO {
-      val fs = new LocalFileSystem()
-      fs.initialize(new URI("file:///"), new Configuration())
-      fs
-    }
-    versionTracker <- IO(new FileBackedVersionTracker[IO](fs, new Path(root.toUri)))
-  } yield versionTracker
+  val createVersionTracker: IO[FileBackedVersionTracker[IO]] =
+    for {
+      root <- IO(Files.createTempDirectory(getClass.getSimpleName))
+      fs <- IO {
+        val fs = new LocalFileSystem()
+        fs.initialize(new URI("file:///"), new Configuration())
+        fs
+      }
+      fsSyntax = FileSystemSyntax[IO](blocker)
+      versionTracker <- IO(new FileBackedVersionTracker[IO](fs, fsSyntax, new Path(root.toUri)))
+    } yield versionTracker
 
   "The file backed implementation for the service" should behave like versionTrackerBehaviour {
     createVersionTracker
