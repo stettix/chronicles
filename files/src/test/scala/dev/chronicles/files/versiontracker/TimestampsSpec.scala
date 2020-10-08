@@ -12,11 +12,11 @@ class TimestampsSpec extends FlatSpec with Matchers {
     values.distinct should contain theSameElementsInOrderAs values
   }
 
-  it should "ensure subsequent timestamps are equal or in increasing order" in {
+  it should "ensure subsequent timestamps are in increasing order" in {
     val timestampPairs = testStream.zipWithPrevious.compile.toVector.unsafeRunSync()
 
     timestampPairs.foreach {
-      case (Some(prev), next) => assert(!prev.isAfter(next))
+      case (Some(prev), next) => assert(next.isAfter(prev))
       case (None, _)          =>
     }
 
