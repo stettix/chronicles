@@ -5,18 +5,18 @@ import java.nio.file.{Files, Path => JPath}
 
 import cats.effect.{Blocker, ContextShift, IO}
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, LocalFileSystem, Path}
+import org.apache.hadoop.fs.{LocalFileSystem, Path}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext
 
-class FileSystemSyntaxSpec extends FlatSpec with Matchers {
+class PureFileSystemSpec extends FlatSpec with Matchers {
 
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   val blocker: Blocker = Blocker.liftExecutionContext(ExecutionContext.global)
 
   // Create a temporary directory and the Filesystem objects under test.
-  val init: IO[(JPath, FileSystem, FileSystemSyntax[IO])] =
+  val init: IO[(JPath, PureFileSystem[IO])] =
     for {
       root <- IO(Files.createTempDirectory(getClass.getSimpleName))
       fs <- IO {
@@ -24,15 +24,13 @@ class FileSystemSyntaxSpec extends FlatSpec with Matchers {
         fs.initialize(new URI("file:///"), new Configuration())
         fs
       }
-      fsSyntax <- IO((root, fs, FileSystemSyntax[IO](blocker)))
-    } yield fsSyntax
+      fileSystem <- IO((root, PureFileSystem[IO](fs, blocker)))
+    } yield fileSystem
 
   "Performing filesystem operations" should "work as expected" in {
 
     val test = init.flatMap {
-      case (root, fs, fsSyntax) =>
-        import fsSyntax._
-
+      case (root, fs) =>
         val rootPath = new Path(root.toUri)
         val dir1 = new Path(rootPath, "dir1")
         val dir2 = new Path(rootPath, "dir2")

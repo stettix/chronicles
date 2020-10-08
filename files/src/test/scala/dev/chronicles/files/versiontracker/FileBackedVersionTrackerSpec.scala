@@ -29,8 +29,8 @@ class FileBackedVersionTrackerSpec extends FlatSpec with VersionTrackerSpec with
         fs.initialize(new URI("file:///"), new Configuration())
         fs
       }
-      fsSyntax = FileSystemSyntax[IO](blocker)
-      versionTracker <- IO(new FileBackedVersionTracker[IO](fs, fsSyntax, new Path(root.toUri)))
+      fileSystem = PureFileSystem[IO](fs, blocker)
+      versionTracker <- IO(new FileBackedVersionTracker[IO](fileSystem, new Path(root.toUri)))
     } yield versionTracker
 
   "The file backed implementation for the service" should behave like versionTrackerBehaviour {

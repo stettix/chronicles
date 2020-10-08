@@ -15,19 +15,15 @@ import fs2.Stream
 import io.circe.Printer.spaces2
 import io.circe.parser._
 import io.circe.syntax._
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.Path
 
 /**
   * This class implementation a VersionTracker that stores its state in an underlying filesystem.
   *
   * @param rootDirectory Root directory for table metadata. This does not have to be in the same location as table data.
   */
-class FileBackedVersionTracker[F[_]](fs: FileSystem, fsSyntax: FileSystemSyntax[F], rootDirectory: Path)(
-    implicit F: Sync[F])
+class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)(implicit F: Sync[F])
     extends VersionTracker[F] {
-
-  // TODO: Only pass in FileSystem wrapper, not FileSystem + Syntax
-  import fsSyntax._
 
   private val timestamps: Stream[F, Instant] = Timestamps.uniqueTimestamps
 
