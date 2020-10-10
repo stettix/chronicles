@@ -9,17 +9,13 @@ import cats.implicits._
 /**
   * Implements a monotonic, effectful clock that provides timestamps with millisecond resolution that are guaranteed to be unique.
   */
-class MonotonicClock[F[_]] private (last: Ref[F, Option[Instant]])(implicit F: Sync[F]) {
+class MonotonicClock[F[_]] private (last: Ref[F, Instant])(implicit F: Sync[F]) {
 
   val nextTimestamp: F[Instant] = for {
     now <- F.delay(Instant.now())
-    timestamp <- last.modify { prevTimestamp =>
-      val next = prevTimestamp match {
-        case None                            => now
-        case Some(prev) if now.isAfter(prev) => now
-        case Some(prev)                      => prev.plusMillis(1)
-      }
-      Option(next) -> next
+    timestamp <- last.modify { prev =>
+      val next = if (now.isAfter(prev)) now else prev.plusMillis(1)
+      next -> next
     }
   } yield timestamp
 
@@ -27,8 +23,7 @@ class MonotonicClock[F[_]] private (last: Ref[F, Option[Instant]])(implicit F: S
 
 object MonotonicClock {
 
-  def apply[F[_]](implicit F: Sync[F]): F[MonotonicClock[F]] = {
-    Ref.of[F, Option[Instant]](None).map(ref => new MonotonicClock(ref))
-  }
+  def apply[F[_]](implicit F: Sync[F]): F[MonotonicClock[F]] =
+    Ref.of[F, Instant](Instant.ofEpochMilli(0)).map(ref => new MonotonicClock(ref))
 
 }
