@@ -14,10 +14,12 @@ class MonotonicClock[F[_]] private (last: Ref[F, Option[Instant]])(implicit F: S
   val nextTimestamp: F[Instant] = for {
     now <- F.delay(Instant.now())
     timestamp <- last.modify { prevTimestamp =>
-      if (prevTimestamp.exists(prev => !now.isAfter(prev)))
-        (prevTimestamp.map(_.plusMillis(1)), now)
-      else
-        (Option(now), now)
+      val next = prevTimestamp match {
+        case None                            => now
+        case Some(prev) if now.isAfter(prev) => now
+        case Some(prev)                      => prev.plusMillis(1)
+      }
+      Option(next) -> next
     }
   } yield timestamp
 

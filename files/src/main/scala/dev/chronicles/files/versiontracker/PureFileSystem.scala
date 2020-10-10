@@ -8,7 +8,7 @@ import fs2._
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 
 /**
-  * This implements a facade to a Hadoop FileSystem with an API that uses Cats Effect.
+  * This implements a facade for a Hadoop FileSystem that provides an API based on Cats Effect.
   */
 case class PureFileSystem[F[_]](fs: FileSystem, blocker: Blocker)(implicit F: Sync[F], cs: ContextShift[F]) {
 

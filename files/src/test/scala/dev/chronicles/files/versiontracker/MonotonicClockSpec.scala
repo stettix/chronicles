@@ -16,8 +16,8 @@ class MonotonicClockSpec extends FlatSpec with Matchers {
 
     val timestamps = test.unsafeRunSync()
 
-    timestamps should have size NumTests
-    timestamps.sortBy(_.getNano) should contain theSameElementsInOrderAs (timestamps)
+    timestamps.distinct should have size NumTests
+    timestamps.sortBy(_.toEpochMilli) should contain theSameElementsInOrderAs timestamps
   }
 
 }
