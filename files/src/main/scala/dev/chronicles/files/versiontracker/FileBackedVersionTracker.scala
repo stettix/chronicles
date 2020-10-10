@@ -20,21 +20,22 @@ import org.apache.hadoop.fs.Path
 /**
   * This class implementation a VersionTracker that stores its state in an underlying filesystem.
   *
+  * Note: this implementation does not provide the same guarantees for concurrent updates of tables as the other implementations.
+  * This may not be a problem in practice but should be born in mind.
+  *
+  * @param fs            The underlying filesystem.
   * @param rootDirectory Root directory for table metadata. This does not have to be in the same location as table data.
+  * @param clock A monotonically increasing clock that's used to generate unique timestamps for files.
   */
-class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)(implicit F: Sync[F])
+class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path, clock: MonotonicClock[F])(
+    implicit F: Sync[F])
     extends VersionTracker[F] {
 
-  private val timestamps: Stream[F, Instant] = Timestamps.uniqueTimestamps
-
-  override def tables(): Stream[F, TableName] = {
-    val folders = fs.listDirectories(rootDirectory)
-
+  override def tables(): Stream[F, TableName] =
     Stream
-      .eval(folders)
-      .flatMap(Stream.emits(_))
+      .eval(fs.listDirectories(rootDirectory))
+      .flatMap(Stream.emits)
       .mapFilter(path => parseTableName(path.getName))
-  }
 
   override def initTable(
       table: TableName,
@@ -48,39 +49,23 @@ class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)
     val tableMetadataStr = TableMetadataFile(isSnapshot).asJson.printWith(spaces2)
     val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
 
-    fs.createDirectory(tableDirectoryPath) >>
-      fs.write(metadataPath, tableMetadataStr) >>
+    (fs.directoryExists(tableDirectoryPath) >>=
+      (existsAlready =>
+        if (existsAlready) F.unit
+        else fs.createDirectory(tableDirectoryPath) >> fs.write(metadataPath, tableMetadataStr))) >>
       commit(table, initialUpdate) >>
       setCurrentVersion(table, initialUpdate.metadata.id)
-
-    for {
-      existsAlready <- fs.directoryExists(tableDirectoryPath)
-      _ <- if (existsAlready) F.unit
-      else fs.createDirectory(tableDirectoryPath) >> fs.write(metadataPath, tableMetadataStr)
-      _ <- commit(table, initialUpdate)
-      _ <- setCurrentVersion(table, initialUpdate.metadata.id)
-    } yield ()
   }
 
-  override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] = {
-    val tableDirectoryPath = pathForTable(table)
-
-    val writeTableUpdate: F[Unit] = for {
+  override def commit(table: TableName, update: VersionTracker.TableUpdate): F[Unit] =
+    for {
       _ <- checkExists(table)
-      timestamp <- timestamps.head.compile.toList
-      ts <- F.fromOption(timestamp.headOption, new Error("Failed to get timestamp"))
-      pathForUpdate = new Path(tableDirectoryPath, tableUpdateFilename(ts))
+      ts <- clock.nextTimestamp
+      pathForUpdate = new Path(pathForTable(table), tableUpdateFilename(ts))
       fileContent = update.asJson.printWith(spaces2)
       _ <- fs.write(pathForUpdate, fileContent)
       _ <- setCurrentVersion(table, update.metadata.id, checkIfCommitExists = false)
     } yield ()
-
-    for {
-      dirExists <- fs.directoryExists(tableDirectoryPath)
-      _ <- if (!dirExists) F.raiseError(unknownTableError(table)) else F.unit
-      _ <- writeTableUpdate
-    } yield ()
-  }
 
   override def setCurrentVersion(table: TableName, id: VersionTracker.CommitId): F[Unit] =
     setCurrentVersion(table, id, checkIfCommitExists = true)
@@ -104,12 +89,6 @@ class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)
     val tableDirectoryPath = pathForTable(table)
     val stateFilePath = new Path(tableDirectoryPath, StateFilename)
 
-    val readCurrentVersion = for {
-      _ <- checkExists(table)
-      stateFileContent <- fs.readString(stateFilePath)
-      stateFile <- F.fromEither(decode[StateFile](stateFileContent))
-    } yield CommitId(stateFile.headRef)
-
     def isTableUpdate(file: Path): Boolean = file.getName.startsWith(TableUpdateFilePrefix)
 
     // Read sorted sequence of table update files.
@@ -123,9 +102,15 @@ class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)
     // Convert files.
     val updates = Stream
       .eval(tableUpdateFiles)
-      .flatMap(files => Stream.emits(files))
+      .flatMap(Stream.emits)
       .evalMap(fs.readString)
       .evalMap(content => F.fromEither(decode[TableUpdate](content)))
+
+    val readCurrentVersion = for {
+      _ <- checkExists(table)
+      stateFileContent <- fs.readString(stateFilePath)
+      stateFile <- F.fromEither(decode[StateFile](stateFileContent))
+    } yield CommitId(stateFile.headRef)
 
     readCurrentVersion
       .map(currentState => TableState(currentState, updates))
@@ -155,17 +140,19 @@ class FileBackedVersionTracker[F[_]](fs: PureFileSystem[F], rootDirectory: Path)
   private def pathForTable(table: TableName): Path =
     new Path(rootDirectory, TableDirectoryPrefix + table.fullyQualifiedName)
 
-  private def checkExists(table: TableName): F[Unit] = {
-    val tableDirectoryPath = pathForTable(table)
-    for {
-      exists <- fs.directoryExists(tableDirectoryPath)
-      _ <- if (exists) F.unit else F.raiseError(unknownTableError(table))
-    } yield ()
-  }
+  private def checkExists(table: TableName): F[Unit] =
+    fs.directoryExists(pathForTable(table)) >>=
+      (exists => if (exists) F.unit else F.raiseError(unknownTableError(table)))
 
 }
 
 object FileBackedVersionTracker {
+
+  /**
+    * Safe constructor
+    */
+  def apply[F[_]](fs: PureFileSystem[F], rootDirectory: Path)(implicit F: Sync[F]): F[FileBackedVersionTracker[F]] =
+    MonotonicClock[F].map(new FileBackedVersionTracker[F](fs, rootDirectory, _))
 
   final case class TableMetadataFile(isSnapshot: Boolean)
   final case class StateFile(headRef: String)
