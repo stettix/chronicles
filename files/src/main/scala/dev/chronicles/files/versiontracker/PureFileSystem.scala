@@ -31,7 +31,7 @@ case class PureFileSystem[F[_]](fs: FileSystem, blocker: Blocker)(implicit F: Sy
     val outputStream: F[OutputStream] = F.delay(fs.create(path, overwrite))
     val sink = io.writeOutputStream(outputStream, blocker, closeAfterUse = true)
 
-    Stream.emits(content.getBytes()).through(sink).compile.drain
+    Stream(content).through(text.utf8Encode).through(sink).compile.drain
   }
 
   def listDirectories(path: Path): F[List[Path]] = listStatus(path).map { fileStatuses =>

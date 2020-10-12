@@ -29,6 +29,8 @@ class PureFileSystemSpec extends FlatSpec with Matchers {
 
   "Performing filesystem operations" should "work as expected" in {
 
+    val utf8TestContent = "♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜ По оживлённым берегам"
+
     val test = init.flatMap {
       case (root, fs) =>
         val rootPath = new Path(root.toUri)
@@ -41,7 +43,7 @@ class PureFileSystemSpec extends FlatSpec with Matchers {
 
           _ <- fs.createDirectory(dir1)
           _ <- fs.createDirectory(dir2)
-          _ <- fs.write(new Path(rootPath, "fileInRoot"), "This file is in the root directory")
+          _ <- fs.write(new Path(rootPath, "fileInRoot"), "This file is in the root directory" + utf8TestContent)
           _ <- fs.write(new Path(dir1, "fileInDir1"), "This file is in dir1")
           _ <- fs.write(new Path(dir1, "anotherFileInDir1"), "This file is in dir1 too")
 
@@ -58,7 +60,7 @@ class PureFileSystemSpec extends FlatSpec with Matchers {
           _ <- IO(assert(filesInDir1.map(_.getPath.getName).toSet == Set("fileInDir1", "anotherFileInDir1")))
 
           fileInRootReadBack <- fs.readString(new Path(rootPath, "fileInRoot"))
-          _ <- IO(assert(fileInRootReadBack == "This file is in the root directory"))
+          _ <- IO(assert(fileInRootReadBack == "This file is in the root directory" + utf8TestContent))
 
           fileInDir1ReadBack <- fs.readString(new Path(dir1, "fileInDir1"))
           _ <- IO(assert(fileInDir1ReadBack == "This file is in dir1"))
