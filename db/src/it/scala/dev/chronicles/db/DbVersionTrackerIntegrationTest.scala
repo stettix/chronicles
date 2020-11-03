@@ -6,9 +6,10 @@ import cats.effect._
 import dev.chronicles.core.TableName
 import dev.chronicles.core.VersionTracker._
 import doobie.util.transactor.Transactor
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class DbVersionTrackerIntegrationTest extends FlatSpec with Matchers with doobie.scalatest.IOChecker {
+class DbVersionTrackerIntegrationTest extends AnyFlatSpec with Matchers with doobie.scalatest.IOChecker {
 
   implicit val contextShift: ContextShift[IO] =
     IO.contextShift(scala.concurrent.ExecutionContext.global)

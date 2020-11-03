@@ -7,7 +7,9 @@ import doobie.implicits._
 import doobie.util.fragment.Fragment
 import doobie.util.transactor.Transactor
 import org.scalatest.{FlatSpec, Matchers}
+import com.github.ghik.silencer.silent
 
+@silent("deprecated")
 class DbVersionTrackerSpec extends FlatSpec with Matchers with VersionTrackerSpec {
 
   implicit val contextShift: ContextShift[IO] =

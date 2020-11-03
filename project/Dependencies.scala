@@ -34,4 +34,17 @@ object Dependencies {
 
   val pureConfigVersion = "0.13.0"
 
+  val hadoopVersion = "2.6.5"
+
+  lazy val hadoopDependencies: Seq[ModuleID] =
+    Seq(
+      "org.apache.hadoop" % "hadoop-common" %	hadoopVersion
+    )
+
+  val silencerVersion = "1.7.1"
+
+  lazy val silencerDependencies: Seq[ModuleID] = Seq(
+    compilerPlugin("com.github.ghik" % "silencer-plugin" % silencerVersion cross CrossVersion.full),
+    "com.github.ghik" % "silencer-lib" % silencerVersion % Provided cross CrossVersion.full
+  )
 }

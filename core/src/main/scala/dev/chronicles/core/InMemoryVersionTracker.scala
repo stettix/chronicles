@@ -65,7 +65,7 @@ class InMemoryVersionTracker[F[_]] private (allUpdates: Ref[F, TableUpdates])(im
       timestamp: Instant): F[Unit] = {
 
     val initialUpdate = TableUpdate(userId, message, timestamp, operations = List(InitTable(table, isSnapshot)))
-    def newTableState = InMemoryTableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
+    val newTableState = InMemoryTableState(currentVersion = initialUpdate.metadata.id, updates = List(initialUpdate))
 
     allUpdates.update { prev =>
       if (prev.contains(table))

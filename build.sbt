@@ -9,14 +9,14 @@ ThisBuild / description := "Version control for Big Data"
 lazy val commonSettings = Seq(
   version := "0.0.1",
   licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0")),
-  scalaVersion := "2.12.10",
+  scalaVersion := "2.12.12",
   scalacOptions ++= scala211CompilerFlags,
   scalafmtOnCompile := true,
   addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
   libraryDependencies ++= Seq(
     scalatest % Test,
     "org.scalacheck" %% "scalacheck" % "1.14.0" % Test
-  ),
+  ) ++ silencerDependencies,
   resolvers += Resolver.sonatypeRepo("releases"),
   cancelable in Global := true,
   run in Compile := Defaults.runTask(fullClasspath in Compile, mainClass in (Compile, run), runner in (Compile, run))
@@ -94,6 +94,23 @@ lazy val `chronicles-aws-glue` = project
     ))
   .settings(parallelExecution in Test := false)
   .dependsOn(`chronicles-core` % "compile->compile;test->test;it->test")
+
+lazy val `chronicles-files` = project
+  .in(file("files"))
+  .settings(commonSettings)
+  .settings(libraryDependencies ++= Seq(
+    "io.circe" %% "circe-core" % circeVersion,
+    "io.circe" %% "circe-generic" % circeVersion,
+    "io.circe" %% "circe-generic-extras" % "0.12.2",
+    "io.circe" %% "circe-parser" % circeVersion,
+    "co.fs2" %% "fs2-io" % fs2Version,
+    "commons-io" % "commons-io" % "2.6",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
+    "log4j" % "log4j" % "1.2.17"
+  ) ++ hadoopDependencies)
+  .settings(parallelExecution in Test := false)
+  .settings(fork in Test := true)
+  .dependsOn(`chronicles-core` % "compile->compile;test->test")
 
 lazy val `chronicles-acceptance-tests` = project
   .in(file("acceptance-tests"))
